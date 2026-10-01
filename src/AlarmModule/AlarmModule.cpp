@@ -12,11 +12,11 @@ AlarmModule::AlarmModule(
     passcode_(passcode),
     management_callbacks_(std::move(management_callbacks))
 {   
-    bot_.getEvents().onCommand("subscribe", [this](TgBot::Message::Ptr m) {
+    bot_.getEvents().onCommand("start", [this](TgBot::Message::Ptr m) {
         send(m->chat->id, "Hi, this is ST Remote Monitoring Bot.");
-        send(m->chat->id, "In testing phase. You will receive updates from SC2.")
-        send(m->chat->id, "Hit subscribe to begin. Get passcode from Khang.")
-    }
+        send(m->chat->id, "In testing phase. You will receive updates from SC2.");
+        send(m->chat->id, "Hit subscribe to begin. Get passcode from Khang.");
+    });
 
     bot_.getEvents().onCommand("subscribe", [this](TgBot::Message::Ptr m) {
         auto sp = m->text.find(' ');
@@ -27,7 +27,7 @@ AlarmModule::AlarmModule(
         }
         bool added = management_callbacks_.add && management_callbacks_.add(m->chat->id);
         send(m->chat->id, added ? "Subscribed to alarms." : "Already subscribed.");
-        });
+    });
 
     bot_.getEvents().onCommand("unsubscribe", [this](TgBot::Message::Ptr m) {
         if (management_callbacks_.remove) {
