@@ -20,7 +20,6 @@ int main()
     std::string telegram_token(token_env);
     
     // do a config file to read in ip and port
-    std::string telegram_token(token_env);
     std::string ip = "10.0.0.8";
     int port = 4004;
     std::string passcode = "Password123!";
