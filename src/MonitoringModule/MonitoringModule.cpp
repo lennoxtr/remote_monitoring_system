@@ -153,13 +153,13 @@ void MonitoringModule::process_messages(const std::string& message)
 		std::string message_type = parsed_message["type"];
 
 		if (message_type == "healthcheck") {
-			std::cout << "Healthcheck Message";
+			std::cout << "Healthcheck Message" << std::endl;
 		}
 		else
 		{
 			std::cout << "Alarm message" << std::endl;
 			//pass to alarm module
-
+			std::cout << "Alarm Message: " << message << std::endl;
 			if (alert_callback_) {
 				alert_callback_(message);
 			}
