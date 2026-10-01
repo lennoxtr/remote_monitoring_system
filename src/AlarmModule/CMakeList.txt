@@ -1,6 +1,0 @@
-target_link_libraries(AlarmModule PUBLIC tgbot::tgbot)
-
-add_library(AlarmModule
-    AlarmModule.cpp
-    AlarmModule.h
-)

@@ -1,46 +1,63 @@
 #include "AlarmModule.h"
 #include <tgbot/tgbot.h>
 #include <string>
+#include <mutex>
+
 
 AlarmModule::AlarmModule(
-	const std::string& telegram_token
-)
-	: bot_(telegram_token)
-{
-    bot.getEvents().onCommand("start", [&bot](std::shared_ptr<TgBot::Message> message) {
-        // save chat_id here for sms alert later
-        bot.getApi().sendMessage(message->chat->id, "Hi, this is ST Engineering Remote Monitoring Bot!");
-        bot.getApi().sendMessage(message->chat->id, "Testing Phase: you will receive alerts from SC2");
+    const std::string& token,
+    std::string passcode,
+    ManagementCallbacks management_callbacks
+)    : bot_(token),
+    passcode_(passcode),
+    management_callbacks_(std::move(management_callbacks))
+{   
+    bot_.getEvents().onCommand("subscribe", [this](TgBot::Message::Ptr m) {
+        send(m->chat->id, "Hi, this is ST Remote Monitoring Bot.");
+        send(m->chat->id, "In testing phase. You will receive updates from SC2.")
+        send(m->chat->id, "Hit subscribe to begin. Get passcode from Khang.")
+    }
 
-        /*
-        TgBot::InlineKeyboardButton::Ptr button(new TgBot::InlineKeyboardButton);
-        button->text = "Subscribe!";
-        button->callbackData = "subscribe_clicked";
-
-        std::vector<TgBot::InlineKeyboardButton::Ptr> row;
-        row.push_back(button);
-
-        TgBot::InlineKeyboardMarkup::Ptr keyboard(new TgBot::InlineKeyboardMarkup);
-        keyboard->inlineKeyboard.push_back(row);
-
-        bot.getApi().sendMessage(message->chat->id, "Hit the button below to subscribe to a vessel's alarm!", false, 0, keyboard);
-        */
-    });
-
-    bot.getEvents().onAnyMessage([&bot](std::shared_ptr<TgBot::Message> message) {
-        const auto text = message->text;
-        std::cout << "User wrote " << text << std::endl;
-        if (text.starts_with("/start")) {
+    bot_.getEvents().onCommand("subscribe", [this](TgBot::Message::Ptr m) {
+        auto sp = m->text.find(' ');
+        std::string code = (sp == std::string::npos) ? "" : m->text.substr(sp + 1);
+        if (code != passcode_) {
+            send(m->chat->id, "Wrong or missing passcode.");
             return;
         }
-        bot.getApi().sendMessage(message->chat->id, "Your message is: " + text);
+        bool added = management_callbacks_.add && management_callbacks_.add(m->chat->id);
+        send(m->chat->id, added ? "Subscribed to alarms." : "Already subscribed.");
+        });
+
+    bot_.getEvents().onCommand("unsubscribe", [this](TgBot::Message::Ptr m) {
+        if (management_callbacks_.remove) {
+            management_callbacks_.remove(m->chat->id);
+        }
+        send(m->chat->id, "Unsubscribed.");
         });
 }
 
-AlarmModule::start()
+
+void AlarmModule::start()
 {
-    TgBot::TgLongPoll longPoll(bot);
+    TgBot::TgLongPoll longPoll(bot_);
     while (true) {
         longPoll.start();
+    }
+}
+
+void AlarmModule::send(std::int64_t chat_id, const std::string& message)
+{
+    std::lock_guard<std::mutex> lock(api_mtx_);
+    bot_.getApi().sendMessage(chat_id, message);
+}
+
+void AlarmModule::broadcast(const std::string& message)
+{
+    if (management_callbacks_.get_operator_list) {
+        std::vector<std::int64_t> operator_list =  management_callbacks_.get_operator_list();
+        for (std::int64_t chat_id : operator_list) {
+            send(chat_id, message);
+        }
     }
 }

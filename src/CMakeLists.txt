@@ -12,7 +12,6 @@ target_link_libraries(Remote_Monitoring_System
         ManagementModule
         MonitoringModule
         AlarmModule
-        tgbot::tgbot
 )
 
 install(TARGETS Remote_Monitoring_System DESTINATION bin)
