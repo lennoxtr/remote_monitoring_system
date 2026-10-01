@@ -9,7 +9,6 @@
 class ManagementModule {
 public:
 	ManagementModule();
-	~ManagementModule();
 	void reload_all_records();
 	bool add_operator(std::int64_t chat_id);
 	void add_vessel();
