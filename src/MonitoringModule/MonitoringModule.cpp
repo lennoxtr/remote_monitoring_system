@@ -144,7 +144,7 @@ bool MonitoringModule::get_message_once(std::string& out_message)
 
 }
 
-void MonitoringModule::process_messages(const std::string& message)
+int MonitoringModule::process_messages(const std::string& message)
 {
 	
 	try {
@@ -154,20 +154,31 @@ void MonitoringModule::process_messages(const std::string& message)
 
 		if (message_type == "healthcheck") {
 			std::cout << "Healthcheck Message" << std::endl;
+			return 1;
 		}
 		else
 		{
 			std::cout << "Alarm message" << std::endl;
-			//pass to alarm module
-			std::cout << "Alarm Message: " << message << std::endl;
-			if (alert_callback_) {
-				alert_callback_(message);
+			json alarm_payload = parsed_message["payload"];
+
+			std::string alert_broadcast = "🚨FLOAT SWITCH ALARM!!!🚨\n";
+
+			for (const auto& [name, info] : alarm_payload.items()) {
+				int elapsed = info.value("elapsed", 0);
+				alert_broadcast += "\n- " + name + ": " + std::to_string(elapsed) + " s";
+				std::cout << name << " in alarm for " << elapsed << " s" << std::endl;
 			}
+			//pass to alarm module
+			if (alert_callback_) {
+				alert_callback_(alert_broadcast);
+			}
+			return 1;
 		}
 	}
 
 	catch (...) {
 		std::cerr << "Failed to parse message" << std::endl;
+		return -1;
 	}
 }
 

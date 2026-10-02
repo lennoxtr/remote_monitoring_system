@@ -14,8 +14,9 @@ AlarmModule::AlarmModule(
 {   
     bot_.getEvents().onCommand("start", [this](TgBot::Message::Ptr m) {
         send(m->chat->id, "Hi, this is ST Remote Monitoring Bot.");
-        send(m->chat->id, "In testing phase. You will receive updates from SC2.");
-        send(m->chat->id, "Hit subscribe to begin. Get passcode from Khang.");
+        send(m->chat->id, "Hit /subscribe <PASSCODE> to subscribe to alarm from a Vessel.");
+        send(m->chat->id, "Passcode generaiton still in testing phase. Get passcode from Khang.");
+        send(m->chat->id, "Many Vessel- Many Operators still in testing phase. You will receive updates from SC2.");
     });
 
     bot_.getEvents().onCommand("subscribe", [this](TgBot::Message::Ptr m) {
@@ -23,6 +24,7 @@ AlarmModule::AlarmModule(
         std::string code = (sp == std::string::npos) ? "" : m->text.substr(sp + 1);
         if (code != passcode_) {
             send(m->chat->id, "Wrong or missing passcode.");
+            send(m->chat->id, "Correct syntax is /subscribe <PASSCODE>");
             return;
         }
         bool added = management_callbacks_.add && management_callbacks_.add(m->chat->id);

@@ -6,7 +6,6 @@
 #include <functional>
 #include <thread>
 
-
 class Watchdog {
 public:
 	using AlertCallback = std::function<void(const std::string&)>;
@@ -20,8 +19,8 @@ public:
 
 	void reset();
 private:
-	void monitor();
 
+	void monitor();
 	std::chrono::seconds timeout_freq_;
 	std::chrono::seconds alert_freq_;
 	std::chrono::steady_clock::time_point last_reset_time_;
@@ -61,9 +60,9 @@ private:
 	std::string rx_buffer_;
 
 	Watchdog watchdog_;
-
+	std::string build_alert_message(const std::string& cerbo_gx_payload);
 	bool initialize_socket();
 	bool get_message_once(std::string& out_message);
-	void process_messages(const std::string& message);
+	int process_messages(const std::string& message);
 	int end();
 };
