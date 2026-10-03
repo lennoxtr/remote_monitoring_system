@@ -28,5 +28,4 @@ private:
 	std::mutex api_mtx_;
 
 	void send(std::int64_t chat_id, const std::string& message);
-	void build_message();
 };

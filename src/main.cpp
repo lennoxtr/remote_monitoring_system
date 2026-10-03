@@ -36,7 +36,10 @@ int main()
 
     std::function<void(const std::string&)> alarm_callback = [&](const std::string& message) { return alarm_module.broadcast(message); };
 
-    MonitoringModule monitoring_module(ip, port, alarm_callback);
+
+    std::chrono::seconds watchdog_timeout_freq_(60);
+    std::chrono::seconds broadcast_freq_(60);
+    MonitoringModule monitoring_module(ip, port, watchdog_timeout_freq_, broadcast_freq_, alarm_callback);
 
     std::thread monitor_thread([&monitoring_module] {
         monitoring_module.start();

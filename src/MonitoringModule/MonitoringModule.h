@@ -11,8 +11,8 @@ public:
 	using AlertCallback = std::function<void(const std::string&)>;
 
 	Watchdog(
-		std::chrono::seconds timeout_freq_,
-		std::chrono::seconds alert_freq_,
+		std::chrono::seconds watchdog_timeout_freq_,
+		std::chrono::seconds broadcast_freq_,
 		AlertCallback alert_callback
 	);
 	~Watchdog();
@@ -21,8 +21,8 @@ public:
 private:
 
 	void monitor();
-	std::chrono::seconds timeout_freq_;
-	std::chrono::seconds alert_freq_;
+	std::chrono::seconds watchdog_timeout_freq_;
+	std::chrono::seconds broadcast_freq_;
 	std::chrono::steady_clock::time_point last_reset_time_;
 	std::chrono::steady_clock::time_point next_alert_time_;
 
@@ -45,6 +45,8 @@ public:
 	MonitoringModule(
 		const std::string& ip,
 		int port,
+		std::chrono::seconds watchdog_timeout_freq_,
+		std::chrono::seconds broadcast_freq_,
 		AlertCallback alert_callback
 	);
 	~MonitoringModule();
@@ -54,13 +56,16 @@ public:
 private:
 	AlertCallback alert_callback_;
 
+
 	std::string ip_;
 	int port_;
 	int client_socket_ = -1;
 	std::string rx_buffer_;
+	std::chrono::seconds watchdog_timeout_freq_;
+	std::chrono::seconds broadcast_freq_;
+	std::chrono::steady_clock::time_point next_broadcast_time_;
 
 	Watchdog watchdog_;
-	std::string build_alert_message(const std::string& cerbo_gx_payload);
 	bool initialize_socket();
 	bool get_message_once(std::string& out_message);
 	int process_messages(const std::string& message);

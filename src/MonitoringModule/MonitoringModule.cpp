@@ -11,14 +11,14 @@
 using json = nlohmann::json;
 
 Watchdog::Watchdog(
-	std::chrono::seconds timeout_freq, 
-	std::chrono::seconds alert_freq,
+	std::chrono::seconds watchdog_timeout_freq,
+	std::chrono::seconds broadcast_freq,
 	AlertCallback alert_callback
 	)
-	: timeout_freq_(timeout_freq),
-	alert_freq_(alert_freq),
+	: watchdog_timeout_freq_(watchdog_timeout_freq),
+	broadcast_freq_(broadcast_freq),
 	last_reset_time_(std::chrono::steady_clock::now()),
-	next_alert_time_(last_reset_time_ + timeout_freq),
+	next_alert_time_(last_reset_time_),
 	watcher_thread_(&Watchdog::monitor, this),
 	alert_callback_(alert_callback)
 {
@@ -42,13 +42,13 @@ void Watchdog::reset()
 	{
 		std::lock_guard<std::mutex> lock(mtx_);
 		last_reset_time_ = std::chrono::steady_clock::now();
-		next_alert_time_ = last_reset_time_ + timeout_freq_;
+		next_alert_time_ = last_reset_time_ + watchdog_timeout_freq_;
 		was_timed_out = timed_out_;
 		timed_out_ = false;
 	}
-	if (was_timed_out) {
+	if (was_timed_out && alert_callback_) {
 		// Handle restore msg if have
-		
+		alert_callback_("✅ Link to USV restored");
 	}
 }
 
@@ -58,9 +58,9 @@ void Watchdog::monitor()
 	while (running_) {
 		auto now = std::chrono::steady_clock::now();
 
-		if (now > next_alert_time_) {
+		if (now >= next_alert_time_) {
 			timed_out_ = true;
-			next_alert_time_ = now + alert_freq_;
+			next_alert_time_ = now + broadcast_freq_;
 			lock.unlock();
 			if (alert_callback_) {
 				alert_callback_("Link to USV Lost");
@@ -75,16 +75,21 @@ void Watchdog::monitor()
 MonitoringModule::MonitoringModule(
 	const std::string& ip,
 	int port,
+	std::chrono::seconds watchdog_timeout_freq,
+	std::chrono::seconds broadcast_freq,
 	AlertCallback alert_callback
 )
 	: ip_(ip),
 	port_(port),
 	alert_callback_(alert_callback),
 	watchdog_(
-		std::chrono::seconds(60),
-		std::chrono::seconds(30),
+		watchdog_timeout_freq,
+		broadcast_freq,
 		alert_callback
-	)
+	),
+	watchdog_timeout_freq_(watchdog_timeout_freq),
+	broadcast_freq_(broadcast_freq),
+	next_broadcast_time_(std::chrono::steady_clock::now())
 	
 {
 }
@@ -102,6 +107,8 @@ bool MonitoringModule::initialize_socket()
 		std::cerr << "Error: Failed to create socket.\n";
 		return false;
 	}
+	timeval timeout{ 15, 0 };
+	setsockopt(client_socket_, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 
 	sockaddr_in serverAddress;
 	std::memset(&serverAddress, 0, sizeof(serverAddress));
@@ -157,8 +164,8 @@ int MonitoringModule::process_messages(const std::string& message)
 			return 1;
 		}
 		else
-		{
-			std::cout << "Alarm message" << std::endl;
+		{	
+			auto now = std::chrono::steady_clock::now();
 			json alarm_payload = parsed_message["payload"];
 
 			std::string alert_broadcast = "🚨FLOAT SWITCH ALARM!!!🚨\n";
@@ -169,8 +176,9 @@ int MonitoringModule::process_messages(const std::string& message)
 				std::cout << name << " in alarm for " << elapsed << " s" << std::endl;
 			}
 			//pass to alarm module
-			if (alert_callback_) {
+			if (alert_callback_ && (now >= next_broadcast_time_)) {
 				alert_callback_(alert_broadcast);
+				next_broadcast_time_ = now + broadcast_freq_;
 			}
 			return 1;
 		}
@@ -192,11 +200,14 @@ void MonitoringModule::start()
 			if (initialize_socket()) {
 				while (get_message_once(received_msg)) {
 					// reset watchdog everytime a full msg is received
-					watchdog_.reset();
-					process_messages(received_msg);
+
+					if (process_messages(received_msg)) {
+						watchdog_.reset();
+					}
 				}
 				end();
 			}
+			std::this_thread::sleep_for(std::chrono::seconds(3));
 		}
 	}
 	catch (...) {
