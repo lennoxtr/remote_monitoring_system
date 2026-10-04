@@ -9,7 +9,6 @@
 class AlarmModule 
 {
 public:
-	enum class AddResult { Added, AlreadySubscribed, WrongPasscode };
 
 	struct ManagementCallbacks {
 		std::function<AddResult(std::int64_t, const std::string&)> add_operator;            // chat_id, passcode

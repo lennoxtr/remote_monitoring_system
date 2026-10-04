@@ -1,4 +1,5 @@
 #include "ManagementModule.h"
+#include "AddResult.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <algorithm>
