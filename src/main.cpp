@@ -18,33 +18,38 @@ int main()
     }
 
     std::string telegram_token(token_env);
-    
-    // do a config file to read in ip and port
-    std::string ip = "10.0.0.8";
-    int port = 4004;
-    std::string passcode = "Password123!";
-
-    
 
     ManagementModule management_module;
 
-    AlarmModule alarm_module(telegram_token, passcode, {
-        .add = [&](std::int64_t id) { return management_module.add_operator(id); },
-        .remove = [&](std::int64_t id) { return management_module.remove_operator(id); },
-        .get_operator_list = [&]() { return management_module.get_operators(); },
+    AlarmModule alarm_module(telegram_token, {
+        .add_operator = [&](std::int64_t id) { return management_module.add_operator(id); },
+        .remove_operator = [&](std::int64_t id) { return management_module.remove_operator(id); },
+        .get_vessel_list = [&]() { return management_module.get_vessel_list(); },
+        .get_operator_list = [&]() { return management_module.get_operator_list(); },
     });
-
-    std::function<void(const std::string&)> alarm_callback = [&](const std::string& message) { return alarm_module.broadcast(message); };
-
 
     std::chrono::seconds watchdog_timeout_freq_(60);
     std::chrono::seconds broadcast_freq_(60);
-    MonitoringModule monitoring_module(ip, port, watchdog_timeout_freq_, broadcast_freq_, alarm_callback);
 
-    std::thread monitor_thread([&monitoring_module] {
-        monitoring_module.start();
-        });
+    std::vector<std::thread> monitor_threads;    
+    for (const auto& vessel : management_module.get_all_vessels()) {
+        monitor_threads.emplace_back([&, vessel] {
+            std::function<void(const std::string&)> alarm_callback =
+                [&alarm_module, name = vessel.name](const std::string& message) {
+                alarm_module.broadcast(message, name);
+                };
 
-    alarm_module.start();   
-    monitor_thread.join();
+            MonitoringModule monitoring_module(
+                vessel.target_ip, vessel.target_port,
+                watchdog_timeout_freq_, broadcast_freq_, alarm_callback);
+
+            monitoring_module.start();
+            });
+    }
+
+    alarm_module.start(); 
+
+    for (auto& monitor_thread : monitor_threads) {
+        monitor_thread.join();
+    }
 }
