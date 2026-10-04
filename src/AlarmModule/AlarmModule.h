@@ -26,7 +26,7 @@ public:
 	);
 
 	void start();
-	void broadcast(const std::string& message);
+	void broadcast(const std::string& message, const std::string& vessel_name);
 
 private:
 	TgBot::Bot bot_;
