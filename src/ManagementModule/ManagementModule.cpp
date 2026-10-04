@@ -82,6 +82,9 @@ bool ManagementModule::remove_operator(std::int64_t chat_id, const std::string& 
 		subscribed.erase(it);
 	}
 
+	if (subscribed.empty()) {
+		operator_record.erase(key);	// no subscriptions left, drop the whole entry
+	}
 
 	write_json(assignment_record_path_, assignment_record);
 	write_json(operator_record_path_, operator_record);
