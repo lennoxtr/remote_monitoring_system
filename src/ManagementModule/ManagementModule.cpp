@@ -73,8 +73,8 @@ bool ManagementModule::remove_operator(std::int64_t chat_id, const std::string& 
 	operators.erase(it);
 
 	nlohmann::json operator_record = read_json(operator_record_path_);
-	auto& op = operator_record[std::to_string(chat_id)];
-	auto& subscribed = op["subscribed_vessels"];
+	const std::string key = std::to_string(chat_id);
+	auto& subscribed = operator_record[key]["subscribed_vessels"];
 
 	it = std::find_if(subscribed.begin(), subscribed.end(),
 		[vessel_name](const nlohmann::json& name) { return name.get<std::string>() == vessel_name; });
