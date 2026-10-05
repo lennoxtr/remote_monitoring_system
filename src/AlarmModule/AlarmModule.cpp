@@ -19,7 +19,6 @@ AlarmModule::AlarmModule(
         clear_pending(m->chat->id);
         send(m->chat->id, "Hi, this is ST Remote Monitoring Bot.");
         send(m->chat->id, "Hit /subscribe to subscribe to alarm from a vessel.");
-        send(m->chat->id, "Many Vessels- Many Operators still in testing phase. For now, you can only receive updates from SC2.");
         });
 
     bot_.getEvents().onCommand("subscribe", [this](TgBot::Message::Ptr m) {
@@ -49,7 +48,7 @@ AlarmModule::AlarmModule(
             awaiting_unsubscribe_confirmation_.insert(m->chat->id);
         }
         else {
-            send(m->chat->id, "You are not subscribed to any vessel");
+            send(m->chat->id, "You are not subscribed to any vessel.");
         }
         });
 
@@ -67,8 +66,8 @@ AlarmModule::AlarmModule(
         }
         else {
             std::string msg = "You have chosen to mute vessel's alert.\n";
-            msg += "NOTE: you WON'T receive any message updates at all from any vessel!\n";
-            msg += "Please confirm your intention by typing YES";
+            msg += "\nNOTE: you WON'T receive any message updates at all from any vessel!\n";
+            msg += "\nPlease confirm your intention by typing YES";
             send(m->chat->id, msg);
             awaiting_mute_confirmation_.insert(m->chat->id);
         }
@@ -93,6 +92,30 @@ AlarmModule::AlarmModule(
             send(m->chat->id, "Unmuted vessel's alert.");
         }
         });
+    
+    bot_.getEvents().onCommand("my_status", [this](TgBot::Message::Ptr m) {
+        clear_pending(m->chat->id);
+        std::vector<std::string> vessel_list;
+        if (management_callbacks_.get_subscribed_vessel_list) {
+            vessel_list = management_callbacks_.get_subscribed_vessel_list(m->chat->id);
+        }
+        if (vessel_list.empty()) {
+            send(m->chat->id, "You are not subscribed to any vessel.");
+            return;
+        }
+        
+        std::string reply = "Your Current Status:\n";
+        if (management_callbacks_.is_muted) {
+            bool is_muted = management_callbacks_.is_muted(m->chat->id);
+            reply += is_muted ? "\n🔇 You are muted. No alert messages will be received!\n" : "\n🔔 You are not muted.\n";
+
+            reply += "\nYou are subscribed to alerts from: \n";
+            for (const auto& vessel_name : vessel_list) {
+                reply += "\n- " + vessel_name;
+            }
+            send(m->chat->id, reply);
+        }
+        });
 
     bot_.getEvents().onCommand("help", [this](TgBot::Message::Ptr m) {
         clear_pending(m->chat->id);
@@ -102,6 +125,7 @@ AlarmModule::AlarmModule(
             "/unsubscribe - Stop receiving alerts from a vessel.\n"
             "/mute - Pause ALL alerts until you unmute.\n"
             "/unmute - Resume alerts after a mute.\n"
+            "/my_status - Show current mute status and alert subscription.\n"
             "/help - Show list of commands.");
         });
 
@@ -110,10 +134,19 @@ AlarmModule::AlarmModule(
             clear_pending(m->chat->id);
             std::string passcode = m->text;
             if (management_callbacks_.add_operator) {
+                std::vector<std::string> vessel_list;
+                std::string subscribe_confirmation;
                 switch (management_callbacks_.add_operator(m->chat->id, passcode)) {
                 case AddResult::Added:
-                    send(m->chat->id, "Subscribed to alerts.");
-                    // TODO: print out subscribed list
+                    if (management_callbacks_.get_subscribed_vessel_list) {
+                        vessel_list = management_callbacks_.get_subscribed_vessel_list(m->chat->id);
+                    }
+
+                    subscribe_confirmation = "You are subscribed to alerts from: \n";
+                    for (const auto& vessel_name : vessel_list) {
+                        subscribe_confirmation += "\n- " + vessel_name;
+                    }
+                    send(m->chat->id, subscribe_confirmation);
                     break;
                 case AddResult::AlreadySubscribed:
                     send(m->chat->id, "You are already subscribed to this vessel.");
@@ -132,10 +165,10 @@ AlarmModule::AlarmModule(
                 if (management_callbacks_.set_mute_status) {
                     management_callbacks_.set_mute_status(m->chat->id, true);
                 }
-                send(m->chat->id, "Muted.");
+                send(m->chat->id, "Muted. To unmute, type /unmute.");
             }
             else {
-                send(m->chat->id, "Mute cancelled.");
+                send(m->chat->id, "Mute cancelled. To try again, type /mute.");
             }
         }
 
@@ -186,7 +219,6 @@ void AlarmModule::send(std::int64_t chat_id, const std::string& message)
         std::cerr << "Telebot Exception" << std::endl;
     }
     next_send_ = std::chrono::steady_clock::now() + send_interval_;
-
 }
 
 void AlarmModule::broadcast(const std::string& message, const std::string& vessel_name)
