@@ -220,14 +220,20 @@ void MonitoringModule::start()
 
 std::string MonitoringModule::strip_prefix(const std::string& name, const std::string& prefix)
 {
-	if (name.size() < prefix.size()) return name;
+	size_t start = 0;
+	while (start < name.size() && std::isspace(static_cast<unsigned char>(name[start]))) ++start;
 
+	if (name.size() - start < prefix.size()) return name;
 	for (size_t i = 0; i < prefix.size(); ++i) {
-		if (std::tolower(static_cast<unsigned char>(name[i])) != prefix[i]) {
-			return name;                      
+		if (std::tolower(static_cast<unsigned char>(name[start + i])) !=
+			std::tolower(static_cast<unsigned char>(prefix[i]))) {
+			return name;                       // doesn't start with the prefix
 		}
 	}
-	return name.substr(prefix.size());       
+
+	start += prefix.size();
+	while (start < name.size() && std::isspace(static_cast<unsigned char>(name[start]))) ++start;
+	return name.substr(start);
 }
 
 std::string MonitoringModule::format_elapsed(int seconds)
