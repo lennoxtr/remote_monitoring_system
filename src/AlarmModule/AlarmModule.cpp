@@ -31,13 +31,13 @@ AlarmModule::AlarmModule(
 
     bot_.getEvents().onCommand("unsubscribe", [this](TgBot::Message::Ptr m) {
         clear_pending(m->chat->id);
-        send(m->chat->id, "You have chosen to unsubscribe from vessel's alert.");
         std::vector<std::string> vessel_list;
         if (management_callbacks_.get_subscribed_vessel_list) {
             vessel_list = management_callbacks_.get_subscribed_vessel_list(m->chat->id);
         }
         
         if (!vessel_list.empty()) {
+            send(m->chat->id, "You have chosen to unsubscribe from vessel's alert.");
             std::string unsubscribe_confirmation = "You are subscribed to alerts from: \n";
 
             for (const auto& vessel_name : vessel_list) {
@@ -59,14 +59,18 @@ AlarmModule::AlarmModule(
         if (management_callbacks_.get_subscribed_vessel_list) {
             vessel_list = management_callbacks_.get_subscribed_vessel_list(m->chat->id);
         }
-        if (!vessel_list.empty()) {
-            send(m->chat->id, "You have chosen to mute vessel's alert.");
-            send(m->chat->id, "Note that this means you WON'T receive any message updates at all from any vessel!");
-            send(m->chat->id, "Please confirm your intention by typing YES");
-            awaiting_mute_confirmation_.insert(m->chat->id);
+        if (vessel_list.empty()) {
+            send(m->chat->id, "You are not subscribed to any vessel.");
+        }
+        else if (management_callbacks_.is_muted && management_callbacks_.is_muted(m->chat->id)) {
+            send(m->chat->id, "Already muted.");
         }
         else {
-            send(m->chat->id, "You are not subscribed to any vessel");
+            std::string msg = "You have chosen to mute vessel's alert.\n";
+            msg += "NOTE: you WON'T receive any message updates at all from any vessel!\n";
+            msg += "Please confirm your intention by typing YES";
+            send(m->chat->id, msg);
+            awaiting_mute_confirmation_.insert(m->chat->id);
         }
         });
 
@@ -76,14 +80,17 @@ AlarmModule::AlarmModule(
         if (management_callbacks_.get_subscribed_vessel_list) {
             vessel_list = management_callbacks_.get_subscribed_vessel_list(m->chat->id);
         }
-        if (!vessel_list.empty()) {
+        if (vessel_list.empty()) {
+            send(m->chat->id, "You are not subscribed to any vessel.");
+        }
+        else if (management_callbacks_.is_muted && !management_callbacks_.is_muted(m->chat->id)) {
+            send(m->chat->id, "You are not muted.");
+        }
+        else {
             if (management_callbacks_.set_mute_status) {
                 management_callbacks_.set_mute_status(m->chat->id, false);
             }
             send(m->chat->id, "Unmuted vessel's alert.");
-        }
-        else {
-            send(m->chat->id, "You are not subscribed to any vessel");
         }
         });
 

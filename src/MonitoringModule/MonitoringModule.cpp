@@ -7,6 +7,7 @@
 #include <chrono>
 #include <thread>
 #include <nlohmann/json.hpp>
+#include <cctype>
 
 using json = nlohmann::json;
 
@@ -73,13 +74,15 @@ void Watchdog::monitor()
 }
 
 MonitoringModule::MonitoringModule(
+	const std::string& name,
 	const std::string& ip,
 	int port,
 	std::chrono::seconds watchdog_timeout_freq,
 	std::chrono::seconds broadcast_freq,
 	AlertCallback alert_callback
 )
-	: ip_(ip),
+	: name_(name),
+	ip_(ip),
 	port_(port),
 	alert_callback_(alert_callback),
 	watchdog_(
@@ -168,11 +171,11 @@ int MonitoringModule::process_messages(const std::string& message)
 			auto now = std::chrono::steady_clock::now();
 			json alarm_payload = parsed_message["payload"];
 
-			std::string alert_broadcast = "🚨FLOAT SWITCH ALARM!!!🚨\n";
+			std::string alert_broadcast = "🚨" + name_ + "'s FLOAT SWITCH ALARM!!!🚨\n";
 
 			for (const auto& [name, info] : alarm_payload.items()) {
 				int elapsed = info.value("elapsed", 0);
-				alert_broadcast += "\n- " + name + ": " + std::to_string(elapsed) + " s";
+				alert_broadcast += "\n-Float Switch " + strip_prefix(name, "FL Switch") + ": " + format_elapsed(elapsed);
 				std::cout << name << " in alarm for " << elapsed << " s" << std::endl;
 			}
 			//pass to alarm module
@@ -213,6 +216,31 @@ void MonitoringModule::start()
 	catch (...) {
 		std::cout << "LOL" << std::endl;
 	}
+}
+
+std::string MonitoringModule::strip_prefix(const std::string& name, const std::string& prefix)
+{
+	if (name.size() < prefix.size()) return name;
+
+	for (size_t i = 0; i < prefix.size(); ++i) {
+		if (std::tolower(static_cast<unsigned char>(name[i])) != prefix[i]) {
+			return name;                      
+		}
+	}
+	return name.substr(prefix.size());       
+}
+
+std::string MonitoringModule::format_elapsed(int seconds)
+{
+	if (seconds < 60) {
+		return std::to_string(seconds) + " s";
+	}
+	if (seconds < 3600) {
+		return std::to_string(seconds / 60) + " min";
+	}
+	int hours = seconds / 3600;
+	int minutes = (seconds % 3600) / 60;
+	return std::to_string(hours) + " h " + std::to_string(minutes) + " min";
 }
 
 int MonitoringModule::end()

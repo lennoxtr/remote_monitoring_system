@@ -43,6 +43,7 @@ public:
 	using AlertCallback = std::function<void(const std::string&)>;
 
 	MonitoringModule(
+		const std::string& name,
 		const std::string& ip,
 		int port,
 		std::chrono::seconds watchdog_timeout_freq_,
@@ -56,7 +57,7 @@ public:
 private:
 	AlertCallback alert_callback_;
 
-
+	std::string name_;
 	std::string ip_;
 	int port_;
 	int client_socket_ = -1;
@@ -70,4 +71,8 @@ private:
 	bool get_message_once(std::string& out_message);
 	int process_messages(const std::string& message);
 	int end();
+
+	std::string strip_prefix(const std::string& name, const std::string& prefix);
+	std::string format_elapsed(int seconds);
+
 };

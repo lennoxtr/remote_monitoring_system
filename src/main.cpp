@@ -44,8 +44,12 @@ int main()
                 };
 
             MonitoringModule monitoring_module(
-                vessel.target_ip, vessel.target_port,
-                watchdog_timeout_freq_, broadcast_freq_, alarm_callback);
+                vessel.name,
+                vessel.target_ip,
+                vessel.target_port,
+                watchdog_timeout_freq_,
+                broadcast_freq_,
+                alarm_callback);
 
             monitoring_module.start();
             });
