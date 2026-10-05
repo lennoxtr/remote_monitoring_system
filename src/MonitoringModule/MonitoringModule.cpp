@@ -163,7 +163,6 @@ int MonitoringModule::process_messages(const std::string& message)
 		std::string message_type = parsed_message["type"];
 
 		if (message_type == "healthcheck") {
-			std::cout << "Healthcheck Message" << std::endl;
 			return 1;
 		}
 		else
