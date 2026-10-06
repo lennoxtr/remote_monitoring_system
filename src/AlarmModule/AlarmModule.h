@@ -28,6 +28,7 @@ public:
 	void broadcast(const std::string& message, const std::string& vessel_name);
 
 private:
+	TgBot::CurlHttpClient curlHttpClient_;
 	TgBot::Bot bot_;
 	std::unordered_set<std::int64_t> awaiting_passcode_;
 	std::unordered_set<std::int64_t> awaiting_mute_confirmation_;

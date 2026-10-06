@@ -6,12 +6,14 @@
 #include <chrono>
 #include <thread>
 #include <unordered_set>
+#include <tgbot/net/CurlHttpClient.h>
+
 
 
 AlarmModule::AlarmModule(
     const std::string& token,
     ManagementCallbacks management_callbacks
-)    : bot_(token),
+)    : bot_(token, curlHttpClient_),
     next_send_(std::chrono::steady_clock::now()),
     management_callbacks_(std::move(management_callbacks))
 {   

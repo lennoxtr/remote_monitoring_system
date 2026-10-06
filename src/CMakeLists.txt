@@ -1,5 +1,6 @@
 ﻿find_package(tgbot CONFIG REQUIRED)
 find_package(nlohmann_json REQUIRED)
+find_package(CURL REQUIRED)
 
 add_subdirectory(ManagementModule)
 add_subdirectory(MonitoringModule)
