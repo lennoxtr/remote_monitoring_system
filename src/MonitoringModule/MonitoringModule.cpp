@@ -49,7 +49,8 @@ void Watchdog::reset()
 	}
 	if (was_timed_out && alert_callback_) {
 		// Handle restore msg if have
-		alert_callback_("✅ Link to USV restored");
+		std::string restore_msg = "✅ Link to " + name_ + " restored✅";
+		alert_callback_(restore_msg);
 	}
 }
 
@@ -64,7 +65,8 @@ void Watchdog::monitor()
 			next_alert_time_ = now + broadcast_freq_;
 			lock.unlock();
 			if (alert_callback_) {
-				alert_callback_("Link to USV Lost");
+				std::string lost_msg = "❗Link to " + name_ + " lost❗";
+				alert_callback_(lost_msg);
 			}          
 			lock.lock();
 			continue;
@@ -174,7 +176,7 @@ int MonitoringModule::process_messages(const std::string& message)
 
 			for (const auto& [name, info] : alarm_payload.items()) {
 				int elapsed = info.value("elapsed", 0);
-				alert_broadcast += "\n-Float Switch " + strip_prefix(name, "FL Switch") + ": " + format_elapsed(elapsed);
+				alert_broadcast += "\n-Float Switch " + strip_prefix(name, "FL Switch") + " activated for " + format_elapsed(elapsed);
 				std::cout << name << " in alarm for " << elapsed << " s" << std::endl;
 			}
 			//pass to alarm module
