@@ -51,7 +51,7 @@ void Watchdog::reset()
 	}
 	if (was_timed_out && alert_callback_) {
 		// Handle restore msg if have
-		std::string restore_msg = "✅ Link to " + name_ + " restored✅";
+		std::string restore_msg = "✅ Link to " + usv_name_ + " restored✅";
 		alert_callback_(restore_msg);
 	}
 }
@@ -67,7 +67,7 @@ void Watchdog::monitor()
 			next_alert_time_ = now + broadcast_freq_;
 			lock.unlock();
 			if (alert_callback_) {
-				std::string lost_msg = "❗Link to " + name_ + " lost❗";
+				std::string lost_msg = "❗Link to " + usv_name_ + " lost❗";
 				alert_callback_(lost_msg);
 			}          
 			lock.lock();
