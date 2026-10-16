@@ -90,6 +90,7 @@ MonitoringModule::MonitoringModule(
 	port_(port),
 	alert_callback_(alert_callback),
 	watchdog_(
+		name,
 		watchdog_timeout_freq,
 		broadcast_freq,
 		alert_callback
