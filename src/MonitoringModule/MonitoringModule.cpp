@@ -12,12 +12,12 @@
 using json = nlohmann::json;
 
 Watchdog::Watchdog(
-	const std::string& usv_name_,
+	const std::string& usv_name,
 	std::chrono::seconds watchdog_timeout_freq,
 	std::chrono::seconds broadcast_freq,
 	AlertCallback alert_callback
 	)
-	: name_(usv_name_),
+	: usv_name_(usv_name),
 	watchdog_timeout_freq_(watchdog_timeout_freq),
 	broadcast_freq_(broadcast_freq),
 	last_reset_time_(std::chrono::steady_clock::now()),
