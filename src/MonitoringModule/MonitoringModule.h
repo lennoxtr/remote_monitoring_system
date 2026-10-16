@@ -11,6 +11,7 @@ public:
 	using AlertCallback = std::function<void(const std::string&)>;
 
 	Watchdog(
+		const std::string& usv_name_,
 		std::chrono::seconds watchdog_timeout_freq_,
 		std::chrono::seconds broadcast_freq_,
 		AlertCallback alert_callback
@@ -21,6 +22,7 @@ public:
 private:
 
 	void monitor();
+	std::string usv_name_;
 	std::chrono::seconds watchdog_timeout_freq_;
 	std::chrono::seconds broadcast_freq_;
 	std::chrono::steady_clock::time_point last_reset_time_;
