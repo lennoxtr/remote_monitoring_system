@@ -25,6 +25,7 @@ public:
 	std::vector<std::int64_t> get_operator_list(const std::string& vessel_name);
 
 	std::vector<VesselInfo> get_all_vessels();
+	std::vector<std::int64_t> get_all_operators();
 
 	void add_vessel();
 	void remove_vessel();

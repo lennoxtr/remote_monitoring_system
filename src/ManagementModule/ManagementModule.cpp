@@ -150,6 +150,18 @@ std::vector<VesselInfo> ManagementModule::get_all_vessels()
 	return vessels;
 }
 
+std::vector<std::int64_t> ManagementModule::get_all_operators()
+{
+	std::lock_guard<std::mutex> lock(mtx_);
+	const nlohmann::json record = read_json(operator_record_path_);
+
+	std::vector<std::int64_t> operators;
+	for (const auto& [chat_id_str, info] : record.items()) {
+		operators.push_back(std::stoll(chat_id_str));
+	}
+	return operators;
+}
+
 nlohmann::json ManagementModule::read_json(const std::string& path) {
 	std::ifstream file(path);
 	if (!file) {

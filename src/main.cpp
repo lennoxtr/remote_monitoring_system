@@ -38,7 +38,14 @@ int main()
         .is_muted = [&](std::int64_t id) { return management_module.is_muted(id); },
         .get_subscribed_vessel_list = [&](std::int64_t id) { return management_module.get_subscribed_vessel_list(id); },
         .get_operator_list = [&](const std::string& vessel_name) { return management_module.get_operator_list(vessel_name); },
-        .get_all_vessels = [&]() {return ...}
+        .get_all_vessels = [&]() {
+            std::vector<std::string> vessel_names;
+            for (const auto& vessel : management_module.get_all_vessels()) {
+                vessel_names.push_back(vessel.name);
+            }
+            return vessel_names;
+        },
+        .get_all_operators = [&]() { return management_module.get_all_operators(); }
         });
 
     std::chrono::seconds watchdog_timeout_freq_(60);
