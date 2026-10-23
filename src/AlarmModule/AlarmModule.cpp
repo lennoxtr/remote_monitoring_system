@@ -7,13 +7,15 @@
 #include <thread>
 #include <unordered_set>
 #include <tgbot/net/CurlHttpClient.h>
-
+#include <algorithm>
 
 
 AlarmModule::AlarmModule(
-    const std::string& token,
+    const std::string& telegram_token,
+    const std::string& admin_broadcast_password,
     ManagementCallbacks management_callbacks
-)    : bot_(token, curlHttpClient_),
+)    : bot_(telegram_token, curlHttpClient_),
+    admin_broadcast_password_(admin_broadcast_password),
     next_send_(std::chrono::steady_clock::now()),
     management_callbacks_(std::move(management_callbacks))
 {   
@@ -131,6 +133,13 @@ AlarmModule::AlarmModule(
             "/help - Show list of commands.");
         });
 
+    bot_.getEvents().onCommand("adminbroadcast", [this](TgBot::Message::Ptr m) {
+        clear_pending(m->chat->id);
+        send(m->chat->id, "A passcode is required to broadcast messages to operators.");
+        send(m->chat->id, "Enter admin broadcast passcode: ");
+        awaiting_admin_broadcast_passcode_.insert(m->chat->id);
+        });
+
     bot_.getEvents().onNonCommandMessage([this](TgBot::Message::Ptr m) {
         if (awaiting_passcode_.contains(m->chat->id)) {
             clear_pending(m->chat->id);
@@ -179,8 +188,7 @@ AlarmModule::AlarmModule(
             std::string vessel_name = m->text;
             if (management_callbacks_.remove_operator) {
                 if (management_callbacks_.remove_operator(m->chat->id, vessel_name)) {
-                    // Check
-                    send(m->chat->id, "Unsubscribed");
+                    send(m->chat->id, "Unsubscribed.");
                 }
                 else {
                     send(m->chat->id, "The name you entered does not match any vessel in record. Try again by typing /unsubscribe");
@@ -188,6 +196,74 @@ AlarmModule::AlarmModule(
             }
         }
 
+        else if (awaiting_admin_broadcast_passcode_.contains(m->chat->id)) {
+            clear_pending(m->chat->id);
+            std::string passcode = m->text;
+            if (!admin_broadcast_password_.empty() && passcode == admin_broadcast_password_) {
+                std::vector<std::string> all_vessel_list;
+                if (management_callbacks_.get_all_vessels) {
+                    all_vessel_list = management_callbacks_.get_all_vessels();
+                }
+                std::string broadcast_confirmation = "Which vessel:\n";
+                for (const auto& vessel_name : all_vessel_list) {
+                    broadcast_confirmation += "\n- " + vessel_name;
+                }
+                broadcast_confirmation += "\n- All";
+                send(m->chat->id, broadcast_confirmation);
+                awaiting_admin_broadcast_vessel_.insert(m->chat->id);
+            }
+            else
+            {
+                send(m->chat->id, "Try again by typing /adminbroadcast.");
+            }
+        }
+
+        else if (awaiting_admin_broadcast_vessel_.contains(m->chat->id)) {
+            clear_pending(m->chat->id);
+            std::string vessel_name = m->text;
+            std::vector<std::string> all_vessel_list;
+            if (management_callbacks_.get_all_vessels) {
+                all_vessel_list = management_callbacks_.get_all_vessels();
+            }
+
+            if (vessel_name == "All" || std::find(all_vessel_list.begin(), all_vessel_list.end(), vessel_name) != all_vessel_list.end()) {
+                std::string broadcast_confirmation = "You are broadcasting to " + vessel_name;
+                send(m->chat->id, broadcast_confirmation);
+                send(m->chat->id, "Type broadcasting message:");
+                awaiting_broadcast_text_[m->chat->id] = vessel_name;
+            }
+            else {
+                send(m->chat->id, "Cannot find. Try again by typing /adminbroadcast.");
+            }
+            
+        }
+        else if (auto it = awaiting_broadcast_text_.find(m->chat->id);
+            it != awaiting_broadcast_text_.end())
+        {
+            const std::string vessel_name = it->second;
+            clear_pending(m->chat->id);
+            if (m->text.empty()) {
+                send(m->chat->id, "Empty message. Try again by typing /adminbroadcast.");
+                
+            }
+            else {
+                if (vessel_name == "All") {
+                    std::vector<std::int64_t> all_operator_list;
+                    if (management_callbacks_.get_all_operators) {
+                        all_operator_list = management_callbacks_.get_all_operators();
+                    }
+
+                    for (std::int64_t operator_chat_id : all_operator_list) {
+                        send(operator_chat_id, m->text);
+                    }
+                }
+                else {
+                    broadcast(m->text, vessel_name);
+                }
+            
+            }
+
+        }
         else {
             send(m->chat->id, "Not sure I understand that. Type /help for a list of commands.");
         }
@@ -246,4 +322,7 @@ void AlarmModule::clear_pending(std::int64_t chat_id)
     awaiting_passcode_.erase(chat_id);
     awaiting_mute_confirmation_.erase(chat_id);
     awaiting_unsubscribe_confirmation_.erase(chat_id);
+    awaiting_admin_broadcast_passcode_.erase(chat_id);
+    awaiting_admin_broadcast_vessel_.erase(chat_id);
+    awaiting_broadcast_text_.erase(chat_id);
 }

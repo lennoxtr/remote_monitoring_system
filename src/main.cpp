@@ -13,23 +13,32 @@ int main()
 {   
     
     const char* token_env = std::getenv("TELEGRAM_BOT_TOKEN");
+    const char* broadcast_pwd_env = std::getenv("ADMIN_BROADCAST_PWD");
 
     if (token_env == nullptr) {
         std::cerr << "CRITICAL SECURITY ERROR: TELEGRAM_BOT_TOKEN environment variable is not set!" << std::endl;
         return 1;
     }
 
+    if (broadcast_pwd_env == nullptr) {
+        std::cerr << "CRITICAL SECURITY ERROR: ADMIN_BROADCAST_PWD environment variable is not set!" << std::endl;
+        return 1;
+    }
+
     std::string telegram_token(token_env);
+    std::string admin_broadcast_password(broadcast_pwd_env);
 
     ManagementModule management_module;
 
-    AlarmModule alarm_module(telegram_token, {
+    AlarmModule alarm_module(telegram_token, admin_broadcast_password,
+        {
         .add_operator = [&](std::int64_t id, const std::string& passcode) { return management_module.add_operator(id, passcode); },
         .remove_operator = [&](std::int64_t id, const std::string& vessel_name) { return management_module.remove_operator(id, vessel_name); },
         .set_mute_status = [&](std::int64_t id, bool muted) { management_module.set_mute_status(id, muted); },
         .is_muted = [&](std::int64_t id) { return management_module.is_muted(id); },
         .get_subscribed_vessel_list = [&](std::int64_t id) { return management_module.get_subscribed_vessel_list(id); },
         .get_operator_list = [&](const std::string& vessel_name) { return management_module.get_operator_list(vessel_name); },
+        .get_all_vessels = [&]() {return ...}
         });
 
     std::chrono::seconds watchdog_timeout_freq_(60);

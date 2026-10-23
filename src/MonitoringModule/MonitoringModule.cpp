@@ -166,12 +166,19 @@ int MonitoringModule::process_messages(const std::string& message)
 		json parsed_message = json::parse(message);
 
 		std::string message_type = parsed_message["type"];
-
+		previous_msg_type_ = message_type;
 		if (message_type == "healthcheck") {
+			if (previous_msg_type_ != message_type) {
+				std::string alert_broadcast = "✅" + name_ + "'s ALARM RESOLVED!!!✅\n";
+				if (alert_callback_) {
+					alert_callback_(alert_broadcast);
+				}
+			}
 			return 1;
 		}
 		else
 		{	
+
 			auto now = std::chrono::steady_clock::now();
 			json alarm_payload = parsed_message["payload"];
 
@@ -179,7 +186,7 @@ int MonitoringModule::process_messages(const std::string& message)
 
 			for (const auto& [name, info] : alarm_payload.items()) {
 				int elapsed = info.value("elapsed", 0);
-				alert_broadcast += "\n-Float Switch " + strip_prefix(name, "FL Switch") + " activated for " + format_elapsed(elapsed);
+				alert_broadcast += "\n- Float Switch " + strip_prefix(name, "FL Switch") + " activated for " + format_elapsed(elapsed);
 				std::cout << name << " in alarm for " << elapsed << " s" << std::endl;
 			}
 			//pass to alarm module

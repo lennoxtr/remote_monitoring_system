@@ -61,6 +61,8 @@ private:
 
 	std::string name_;
 	std::string ip_;
+	std::string previous_msg_type_ = "healthcheck";
+
 	int port_;
 	int client_socket_ = -1;
 	std::string rx_buffer_;
