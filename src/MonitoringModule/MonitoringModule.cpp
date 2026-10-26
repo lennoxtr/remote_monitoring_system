@@ -232,7 +232,7 @@ void MonitoringModule::start()
 		}
 	}
 	catch (...) {
-		std::cerr << name_ << ": monitoring stopped: " << e.what() << std::endl;
+		std::cerr << "Monitoring stopped." << std::endl;
 	}
 }
 
