@@ -54,7 +54,7 @@ void Watchdog::reset()
 	if (was_timed_out && alert_callback_) {
 		// Handle restore msg if have
 		std::string restore_msg = "✅ Link to " + usv_name_ + " restored✅";
-		alert_callback_(restore_msg, true);
+		alert_callback_(restore_msg);
 	}
 }
 
@@ -70,7 +70,7 @@ void Watchdog::monitor()
 			lock.unlock();
 			if (alert_callback_) {
 				std::string lost_msg = "❗Link to " + usv_name_ + " lost❗";
-				alert_callback_(lost_msg, true);
+				alert_callback_(lost_msg);
 			}          
 			lock.lock();
 			continue;
@@ -151,7 +151,7 @@ bool MonitoringModule::get_message_once(std::string& out_message)
 		if (n <= 0) return false;
 		rx_buffer_.append(buffer, n);
 	}
-	// Found pos -> end of msg
+	
 	out_message = rx_buffer_.substr(0, pos); // clears \n
 	rx_buffer_.erase(0, pos + 1);
 	if (!out_message.empty() && out_message.back() == '\r') { // clear \r
@@ -169,7 +169,7 @@ int MonitoringModule::process_messages(const std::string& message)
 
 		if (message_type == "healthcheck") {
 			if (previous_msg_type_ == "alarm" && alert_callback_) {
-				alert_callback_("✅" + name_ + "'s ALARM RESOLVED!!!✅\n", true);
+				alert_callback_("✅" + name_ + "'s ALARM RESOLVED!!!✅\n");
 			}
 			previous_msg_type_ = message_type;
 			last_alarm_keys_.clear();
@@ -196,7 +196,7 @@ int MonitoringModule::process_messages(const std::string& message)
 			[this](const std::string& k) { return last_alarm_keys_.count(k) == 0; });
 
 		if (alert_callback_ && (has_new_alarm || now >= next_broadcast_time_)) {
-			alert_callback_(alert_broadcast, has_new_alarm);
+			alert_callback_(alert_broadcast);
 			next_broadcast_time_ = now + broadcast_freq_;
 		}
 
