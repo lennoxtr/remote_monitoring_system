@@ -54,7 +54,7 @@ int main()
     std::vector<std::thread> monitor_threads;    
     for (const auto& vessel : management_module.get_all_vessels()) {
         monitor_threads.emplace_back([&, vessel] {
-            std::function<void(const std::string&)> alarm_callback =
+            std::function<void(const std::string&)> alert_callback =
                 [&alarm_module, name = vessel.name](const std::string& message) {
                 alarm_module.broadcast(message, name);
                 };
@@ -65,7 +65,7 @@ int main()
                 vessel.target_port,
                 watchdog_timeout_freq_,
                 broadcast_freq_,
-                alarm_callback);
+                alert_callback);
 
             monitoring_module.start();
             });

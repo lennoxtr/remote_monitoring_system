@@ -2,6 +2,8 @@
 #include <string>
 #include <chrono>
 #include <mutex>
+#include <set>
+#include <algorithm>
 #include <condition_variable>
 #include <functional>
 #include <thread>
@@ -67,8 +69,12 @@ private:
 	int client_socket_ = -1;
 	std::string rx_buffer_;
 	std::chrono::seconds watchdog_timeout_freq_;
+
+	std::mutex mtx_;
+	std::condition_variable cv_;
 	std::chrono::seconds broadcast_freq_;
 	std::chrono::steady_clock::time_point next_broadcast_time_;
+	std::set<std::string> last_alarm_keys_;
 
 	Watchdog watchdog_;
 	bool initialize_socket();

@@ -8,6 +8,8 @@
 #include <thread>
 #include <nlohmann/json.hpp>
 #include <cctype>
+#include <set>
+#include <algorithm>
 
 using json = nlohmann::json;
 
@@ -52,7 +54,7 @@ void Watchdog::reset()
 	if (was_timed_out && alert_callback_) {
 		// Handle restore msg if have
 		std::string restore_msg = "✅ Link to " + usv_name_ + " restored✅";
-		alert_callback_(restore_msg);
+		alert_callback_(restore_msg, true);
 	}
 }
 
@@ -68,7 +70,7 @@ void Watchdog::monitor()
 			lock.unlock();
 			if (alert_callback_) {
 				std::string lost_msg = "❗Link to " + usv_name_ + " lost❗";
-				alert_callback_(lost_msg);
+				alert_callback_(lost_msg, true);
 			}          
 			lock.lock();
 			continue;
@@ -161,45 +163,49 @@ bool MonitoringModule::get_message_once(std::string& out_message)
 
 int MonitoringModule::process_messages(const std::string& message)
 {
-	
 	try {
 		json parsed_message = json::parse(message);
+		std::string message_type = parsed_message.at("type");
 
-		std::string message_type = parsed_message["type"];
-		previous_msg_type_ = message_type;
 		if (message_type == "healthcheck") {
-			if (previous_msg_type_ != message_type) {
-				std::string alert_broadcast = "✅" + name_ + "'s ALARM RESOLVED!!!✅\n";
-				if (alert_callback_) {
-					alert_callback_(alert_broadcast);
-				}
+			if (previous_msg_type_ == "alarm" && alert_callback_) {
+				alert_callback_("✅" + name_ + "'s ALARM RESOLVED!!!✅\n", true);
 			}
+			previous_msg_type_ = message_type;
+			last_alarm_keys_.clear();
 			return 1;
 		}
-		else
-		{	
 
-			auto now = std::chrono::steady_clock::now();
-			json alarm_payload = parsed_message["payload"];
+		auto now = std::chrono::steady_clock::now();
+		const json& alarm_payload = parsed_message.at("payload");
 
-			std::string alert_broadcast = "🚨" + name_ + "'s FLOAT SWITCH ALARM!!!🚨\n";
+		std::set<std::string> current_keys;
+		std::string alert_broadcast = "🚨" + name_ + "'s FLOAT SWITCH ALARM!!!🚨\n";
 
-			for (const auto& [name, info] : alarm_payload.items()) {
-				int elapsed = info.value("elapsed", 0);
-				alert_broadcast += "\n- Float Switch " + strip_prefix(name, "FL Switch") + " activated for " + format_elapsed(elapsed);
-				std::cout << name << " in alarm for " << elapsed << " s" << std::endl;
-			}
-			//pass to alarm module
-			if (alert_callback_ && (now >= next_broadcast_time_)) {
-				alert_callback_(alert_broadcast);
-				next_broadcast_time_ = now + broadcast_freq_;
-			}
-			return 1;
+		for (const auto& [name, info] : alarm_payload.items()) {
+			current_keys.insert(name);
+			int elapsed = info.value("elapsed", 0);
+			alert_broadcast += "\n- Float Switch " + strip_prefix(name, "FL Switch")
+				+ " activated for " + format_elapsed(elapsed);
+			std::cout << name << " in alarm for " << elapsed << " s" << std::endl;
 		}
+
+		// any key not in the last message = new alarm
+		bool has_new_alarm = std::any_of(
+			current_keys.begin(), current_keys.end(),
+			[this](const std::string& k) { return last_alarm_keys_.count(k) == 0; });
+
+		if (alert_callback_ && (has_new_alarm || now >= next_broadcast_time_)) {
+			alert_callback_(alert_broadcast, has_new_alarm);
+			next_broadcast_time_ = now + broadcast_freq_;
+		}
+
+		last_alarm_keys_ = std::move(current_keys);
+		previous_msg_type_ = message_type;
+		return 1;
 	}
-
-	catch (...) {
-		std::cerr << "Failed to parse message" << std::endl;
+	catch (const std::exception& e) {
+		std::cerr << "Failed to process message: " << e.what() << std::endl;
 		return -1;
 	}
 }
@@ -215,17 +221,18 @@ void MonitoringModule::start()
 				while (get_message_once(received_msg)) {
 					// reset watchdog everytime a full msg is received
 
-					if (process_messages(received_msg)) {
+					if (process_messages(received_msg) > 0) {
 						watchdog_.reset();
 					}
 				}
 				end();
+				last_alarm_keys_.clear();
 			}
 			std::this_thread::sleep_for(std::chrono::seconds(3));
 		}
 	}
 	catch (...) {
-		std::cout << "LOL" << std::endl;
+		std::cerr << name_ << ": monitoring stopped: " << e.what() << std::endl;
 	}
 }
 

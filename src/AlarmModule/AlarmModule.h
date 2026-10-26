@@ -8,6 +8,21 @@
 #include <unordered_set>
 #include <unordered_map>
 
+enum class PendingItem {
+	PasscodeVessel,
+	ConfirmMute,
+	VesselToUnsubscribe,
+	PasscodeAdminBroadcast,
+	VesselToBroadcast,
+	BroadcastText
+};
+
+struct PendingState {
+	PendingItem type;
+	std::string pending_data;
+};
+
+
 class AlarmModule 
 {
 public:
@@ -33,20 +48,15 @@ public:
 	void broadcast(const std::string& message, const std::string& vessel_name);
 
 private:
-	TgBot::CurlHttpClient curlHttpClient_;
 	std::string admin_broadcast_password_;
+
+	TgBot::CurlHttpClient curlHttpClient_;
 	TgBot::Bot bot_;
-	std::unordered_set<std::int64_t> awaiting_passcode_;
-	std::unordered_set<std::int64_t> awaiting_mute_confirmation_;
-	std::unordered_set<std::int64_t> awaiting_unsubscribe_confirmation_;
-	std::unordered_set<std::int64_t> awaiting_admin_broadcast_passcode_;
-	std::unordered_set<std::int64_t> awaiting_admin_broadcast_vessel_;
-	std::unordered_map<std::int64_t, std::string> awaiting_broadcast_text_;
 
 	ManagementCallbacks management_callbacks_;
+	std::unordered_map<std::int64_t, PendingState> pending_;
+	
 	std::mutex api_mtx_;
-	std::chrono::steady_clock::time_point next_send_{};
-	static constexpr std::chrono::milliseconds send_interval_{ 50 };
 
 	void send(std::int64_t chat_id, const std::string& message);
 	void clear_pending(std::int64_t chat_id);
