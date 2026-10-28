@@ -10,6 +10,8 @@
 #include <cctype>
 #include <set>
 #include <algorithm>
+#include <string>
+#include <cmath>
 
 using json = nlohmann::json;
 
@@ -27,6 +29,9 @@ Watchdog::Watchdog(
 	watcher_thread_(&Watchdog::monitor, this),
 	alert_callback_(alert_callback)
 {
+	if (!alert_callback_) {
+		std::cerr << "No alert callback" << std::endl;
+	}
 }
 
 Watchdog::~Watchdog()
@@ -51,7 +56,7 @@ void Watchdog::reset()
 		was_timed_out = timed_out_;
 		timed_out_ = false;
 	}
-	if (was_timed_out && alert_callback_) {
+	if (was_timed_out) {
 		// Handle restore msg if have
 		std::string restore_msg = "✅ Link to " + usv_name_ + " restored✅";
 		alert_callback_(restore_msg);
@@ -68,10 +73,10 @@ void Watchdog::monitor()
 			timed_out_ = true;
 			next_alert_time_ = now + broadcast_freq_;
 			lock.unlock();
-			if (alert_callback_) {
-				std::string lost_msg = "❗Link to " + usv_name_ + " lost❗";
-				alert_callback_(lost_msg);
-			}          
+			
+			std::string lost_msg = "❗Link to " + usv_name_ + " lost❗";
+			alert_callback_(lost_msg);
+			        
 			lock.lock();
 			continue;
 		}
@@ -166,36 +171,47 @@ int MonitoringModule::process_messages(const std::string& message)
 	try {
 		json parsed_message = json::parse(message);
 		std::string message_type = parsed_message.at("type");
-
+		const json& payload = parsed_message.at("payload");
+		if (auto it = payload.find("battery"); it != payload.end()) {
+			batteries_status_list_ = parse_batteries(*it);
+		}
 		if (message_type == "healthcheck") {
-			if (previous_msg_type_ == "alarm" && alert_callback_) {
-				alert_callback_("✅" + name_ + "'s ALARM RESOLVED!!!✅\n");
+			if (previous_msg_type_ == "alarm") {
+				alert_callback_("✅ All " + name_ + "'s Alarm Resolved!!!✅\n");
 			}
+			
 			previous_msg_type_ = message_type;
 			last_alarm_keys_.clear();
 			return 1;
 		}
 
-		auto now = std::chrono::steady_clock::now();
-		const json& alarm_payload = parsed_message.at("payload");
-
+		// Alarm messages
 		std::set<std::string> current_keys;
-		std::string alert_broadcast = "🚨" + name_ + "'s FLOAT SWITCH ALARM!!!🚨\n";
+		std::string alert_broadcast;
 
-		for (const auto& [name, info] : alarm_payload.items()) {
-			current_keys.insert(name);
-			int elapsed = info.value("elapsed", 0);
-			alert_broadcast += "\n- Float Switch " + strip_prefix(name, "FL Switch")
-				+ " activated for " + format_elapsed(elapsed);
-			std::cout << name << " in alarm for " << elapsed << " s" << std::endl;
+		for (const auto& [device_type, device_info] : payload.items()) {
+			switch (json(device_type).get<DeviceType>()) {
+
+			case DeviceType::Battery:
+				alert_broadcast += build_battery_alarm(device_info, current_keys);
+				break;
+
+			case DeviceType::FloatSwitch:
+				alert_broadcast += build_floatswitch_alarm(device_info, current_keys);
+				break;
+
+			case DeviceType::Unknown:
+				std::cerr << "Invalid Message Type!" << std::endl;
+				break;
+			} 
 		}
 
-		// any key not in the last message = new alarm
 		bool has_new_alarm = std::any_of(
 			current_keys.begin(), current_keys.end(),
 			[this](const std::string& k) { return last_alarm_keys_.count(k) == 0; });
 
-		if (alert_callback_ && (has_new_alarm || now >= next_broadcast_time_)) {
+		auto now = std::chrono::steady_clock::now();
+		if (has_new_alarm || now >= next_broadcast_time_) {
 			alert_callback_(alert_broadcast);
 			next_broadcast_time_ = now + broadcast_freq_;
 		}
@@ -236,6 +252,86 @@ void MonitoringModule::start()
 	}
 }
 
+std::string MonitoringModule::build_battery_alarm(const json& device_info, std::set<std::string>& alarm_keys) {
+	std::string alert_broadcast;
+	if (device_info.at("status").get<DeviceState>() != DeviceState::Ok) {
+		alert_broadcast += "🚨" + name_ + "'s BATTERY ALARM!!!🚨\n";
+	}
+	std::string batt_name;
+	for (const auto& batt_info : device_info.at("devices")) {
+		batt_name = batt_info.at("name").get<std::string>();
+		switch (json(batt_info.at("status")).get<DeviceState>()) {
+		case DeviceState::Ok:
+			break;
+		case DeviceState::Alarm:
+		{	
+			alarm_keys.insert("battery:" + batt_name);
+			int time_to_go = batt_info.at("timetogo_s").get<int>();
+			float soc = batt_info.at("soc_pct").get<float>();
+			alert_broadcast += "\n- Battery " + batt_name + " SOC is " + (soc >= 0 ? std::to_string(std::lround(soc)) + "%" : "n/a") + ", Time To Go : " + (time_to_go >= 0 ? format_elapsed(time_to_go) : "n/a");
+			std::cout << batt_name << " SOC is " + (soc >= 0 ? std::to_string(std::lround(soc)) + " % " : "n/a") + ", Time To Go : " + (time_to_go >= 0 ? format_elapsed(time_to_go) : "n/a") << std::endl;
+			break;
+		}
+		case DeviceState::Unreadable:
+			alarm_keys.insert("battery:" + batt_name);
+			alert_broadcast += "\n- Battery " + batt_name + " state is unreadable";
+			break;
+		case DeviceState::Unknown:
+			std::cout << "Battery " + batt_name + " state is unknown";
+			break;
+		}
+
+	}
+	return alert_broadcast;
+}
+
+std::string MonitoringModule::build_floatswitch_alarm(const json& device_info, std::set<std::string>& alarm_keys) {
+	std::string alert_broadcast;
+	if (device_info.at("status").get<DeviceState>() != DeviceState::Ok) {
+		alert_broadcast += "🚨" + name_ + "'s FLOATSWITCH ALARM!!!🚨\n";
+	}
+	std::string fs_name;
+	for (const auto& fs_info : device_info.at("devices")) {
+		fs_name = fs_info.at("name").get<std::string>();
+		switch (json(fs_info.at("status")).get<DeviceState>()) {
+		case DeviceState::Alarm:
+		{	
+			alarm_keys.insert("floatswitch:" + fs_name);
+			int elapsed = fs_info.value("elapsed_s", 0);
+			alert_broadcast += "\n- Float Switch " + strip_prefix(fs_name, "FL Switch")
+				+ " activated for " + format_elapsed(elapsed);
+			std::cout << fs_name << " in alarm for " << elapsed << " s" << std::endl;
+			break;
+		}
+		case DeviceState::Unreadable:
+			alarm_keys.insert("floatswitch:" + fs_name);
+			alert_broadcast += "\n- Float Switch " + fs_name + " state is unreadable";
+			break;
+		case DeviceState::Ok:
+			break;
+		case DeviceState::Unknown:
+			std::cout << "Float Switch " + fs_name + " state is unknown";
+			break;
+		}
+		
+	}
+	return alert_broadcast;
+}
+
+std::vector<BatteryCondition> MonitoringModule::parse_batteries(const json& device_info) {
+	std::vector<BatteryCondition> result;
+	for (const auto& b : device_info.at("devices")) {
+		BatteryCondition c;
+		c.name = b.at("name").get<std::string>();
+		c.status = b.at("status").get<DeviceState>();
+		c.soc_pct = b.at("soc_pct").get<float>();
+		c.time_to_go = format_elapsed(b.at("timetogo_s").get<int>());
+		result.push_back(std::move(c));
+	}
+	return result;
+}
+
+
 std::string MonitoringModule::strip_prefix(const std::string& name, const std::string& prefix)
 {
 	size_t start = 0;
@@ -267,11 +363,10 @@ std::string MonitoringModule::format_elapsed(int seconds)
 	return std::to_string(hours) + " h " + std::to_string(minutes) + " min";
 }
 
-int MonitoringModule::end()
+void MonitoringModule::end()
 {
 	if (client_socket_ >= 0) {
 		close(client_socket_);
 		client_socket_ = -1;
 	}
-	return 1;
 }
