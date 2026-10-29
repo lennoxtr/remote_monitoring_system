@@ -56,7 +56,7 @@ int main()
             return monitoring_modules.at(vessel_name)->get_vessel_status();
         }
 
-        set_alarm_threshold = [&](const std::string& vessel_name) {
+        .set_alarm_threshold = [&](const std::string& vessel_name) {
             return monitoring_modules.at(vessel_name)->set_alarm_threshold();
         }
         });
