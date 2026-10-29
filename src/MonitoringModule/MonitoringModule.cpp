@@ -25,7 +25,7 @@ Watchdog::Watchdog(
 	watchdog_timeout_freq_(watchdog_timeout_freq),
 	broadcast_freq_(broadcast_freq),
 	last_reset_time_(std::chrono::steady_clock::now()),
-	next_alert_time_(last_reset_time_),
+	next_alert_time_(last_reset_time_+ watchdog_timeout_freq_),
 	watcher_thread_(&Watchdog::monitor, this),
 	alert_callback_(alert_callback)
 {
@@ -56,11 +56,13 @@ void Watchdog::reset()
 		was_timed_out = timed_out_;
 		timed_out_ = false;
 	}
+	cv_.notify_all();
 	if (was_timed_out) {
 		// Handle restore msg if have
 		std::string restore_msg = "✅ Link to " + usv_name_ + " restored✅";
 		alert_callback_(restore_msg);
 	}
+
 }
 
 void Watchdog::monitor()
@@ -80,7 +82,7 @@ void Watchdog::monitor()
 			lock.lock();
 			continue;
 		}
-		cv_.wait_until(lock, next_alert_time_, [this] { return !running_; });
+		cv_.wait_until(lock, next_alert_time_);
 	}
 }
 
@@ -168,7 +170,6 @@ bool MonitoringModule::get_message_once(std::string& out_message)
 
 int MonitoringModule::process_messages(const std::string& message)
 {
-	std::lock_guard<std::mutex> lock(mtx_);
 	try {
 		json parsed_message = json::parse(message);
 		std::string message_type = parsed_message.at("type");
