@@ -11,29 +11,20 @@
 #include <optional>
 #include <vector>
 
-enum class DeviceType { Unknown, Battery, FloatSwitch };
-enum class DeviceState { Unknown, Ok, Unreadable, Alarm };
-
+#include "Common.h"
 
 NLOHMANN_JSON_SERIALIZE_ENUM(DeviceType, {
 	{DeviceType::Unknown, nullptr},
 	{DeviceType::Battery, "battery"},
 	{DeviceType::FloatSwitch, "floatswitch"},
-	})
+})
 
 NLOHMANN_JSON_SERIALIZE_ENUM(DeviceState, {
 	{DeviceState::Unknown, nullptr},
 	{DeviceState::Ok, "ok"},
 	{DeviceState::Unreadable, "unreadable"},
 	{DeviceState::Alarm, "alarm"},
-	})
-
-struct BatteryCondition {
-	std::string name;
-	DeviceState status = DeviceState::Unknown;
-	std::optional<float> soc_pct;
-	std::optional<std::string> time_to_go;
-};
+})
 
 class Watchdog {
 public:
@@ -86,20 +77,40 @@ public:
 	void start();
 	void end();
 
+	VesselStatus get_vessel_status() const {
+		std::lock_guard<std::mutex> lock(mtx_);
+		VesselStatus vessel_status;
+		vessel_status.batteries_status_list = batteries_status_list_;
+		vessel_status.floatswitch_status_list = floatswitch_status_list_;
+		return vessel_status; 
+	};
+
+	bool set_alarm_threshold();
+
 private:
 	AlertCallback alert_callback_;
 
+	mutable std::mutex mtx_;
+
 	std::string name_;
 	std::string ip_;
-	std::string previous_msg_type_ = "healthcheck";
-
 	int port_;
 	int client_socket_ = -1;
+
 	std::string rx_buffer_;
+
 	std::chrono::seconds watchdog_timeout_freq_;
+
 
 	std::chrono::seconds broadcast_freq_;
 	std::chrono::steady_clock::time_point next_broadcast_time_;
+
+	static constexpr double NormalAlarmThreshold_s = 60.0;
+	static constexpr double PreseaAlarmThreshold_s = 4.5;
+	static constexpr std::chrono::minutes PreseaDuration{ 10 };
+	std::chrono::steady_clock::time_point check_mode_until_{};
+
+
 	std::set<std::string> last_alarm_keys_;
 
 	Watchdog watchdog_;
@@ -107,6 +118,14 @@ private:
 	bool get_message_once(std::string& out_message);
 	int process_messages(const std::string& message);
 	
+	double current_alarm_threshold() const {
+		std::lock_guard<std::mutex> lock(mtx_);
+		return std::chrono::steady_clock::now() < check_mode_until_ 
+			? PreseaAlarmThreshold_s
+			: NormalAlarmThreshold_s;
+	}
+
+	std::vector<FloatSwitchCondition> floatswitch_status_list_;
 	std::vector<BatteryCondition> batteries_status_list_;
 
 	std::string build_battery_alarm(const nlohmann::json& alarm_info, std::set<std::string>& alarm_keys);
@@ -114,5 +133,6 @@ private:
 
 	std::string strip_prefix(const std::string& name, const std::string& prefix);
 	std::string format_elapsed(int seconds);
-	std::vector<BatteryCondition> parse_batteries(const nlohmann::json& alarm_info);
+	std::vector<BatteryCondition> parse_batteries(const nlohmann::json& device_info);
+	std::vector<FloatSwitchCondition> MonitoringModule::parse_floatswitches(const nlohmann::json& device_info);
 };

@@ -168,19 +168,30 @@ bool MonitoringModule::get_message_once(std::string& out_message)
 
 int MonitoringModule::process_messages(const std::string& message)
 {
+	std::lock_guard<std::mutex> lock(mtx_);
 	try {
 		json parsed_message = json::parse(message);
 		std::string message_type = parsed_message.at("type");
 		const json& payload = parsed_message.at("payload");
-		if (auto it = payload.find("battery"); it != payload.end()) {
-			batteries_status_list_ = parse_batteries(*it);
+
+		std::vector<BatteryCondition> batteries;
+		std::vector<FloatSwitchCondition> floatswitches;
+		
+		if (auto it = payload.find("battery"); it != payload.end())
+			batteries = parse_batteries(*it);
+		if (auto it = payload.find("floatswitch"); it != payload.end())
+			floatswitches = parse_floatswitches(*it);
+		{
+			std::lock_guard<std::mutex> lock(mtx_);
+			batteries_status_list_ = std::move(batteries);
+			floatswitch_status_list_ = std::move(floatswitches);
 		}
+
 		if (message_type == "healthcheck") {
-			if (previous_msg_type_ == "alarm") {
+			if (!last_alarm_keys_.empty()) {
 				alert_callback_("✅ All " + name_ + "'s Alarm Resolved!!!✅\n");
 			}
 			
-			previous_msg_type_ = message_type;
 			last_alarm_keys_.clear();
 			return 1;
 		}
@@ -217,7 +228,6 @@ int MonitoringModule::process_messages(const std::string& message)
 		}
 
 		last_alarm_keys_ = std::move(current_keys);
-		previous_msg_type_ = message_type;
 		return 1;
 	}
 	catch (const std::exception& e) {
@@ -285,37 +295,54 @@ std::string MonitoringModule::build_battery_alarm(const json& device_info, std::
 	return alert_broadcast;
 }
 
-std::string MonitoringModule::build_floatswitch_alarm(const json& device_info, std::set<std::string>& alarm_keys) {
-	std::string alert_broadcast;
-	if (device_info.at("status").get<DeviceState>() != DeviceState::Ok) {
-		alert_broadcast += "🚨" + name_ + "'s FLOATSWITCH ALARM!!!🚨\n";
-	}
-	std::string fs_name;
+std::string MonitoringModule::build_floatswitch_alarm(const json& device_info, std::set<std::string>& alarm_keys)
+{
+	const double threshold = current_alarm_threshold();
+	std::string lines;
+
 	for (const auto& fs_info : device_info.at("devices")) {
-		fs_name = fs_info.at("name").get<std::string>();
-		switch (json(fs_info.at("status")).get<DeviceState>()) {
+		const std::string fs_name = fs_info.at("name").get<std::string>();
+
+		switch (fs_info.at("status").get<DeviceState>()) {
 		case DeviceState::Alarm:
-		{	
+		{
+			const int elapsed = fs_info.value("elapsed_s", 0);
+			if (elapsed < threshold) {
+				break;                      // not held long enough in the current mode
+			}
 			alarm_keys.insert("floatswitch:" + fs_name);
-			int elapsed = fs_info.value("elapsed_s", 0);
-			alert_broadcast += "\n- Float Switch " + strip_prefix(fs_name, "FL Switch")
+			lines += "\n- Float Switch " + strip_prefix(fs_name, "FL Switch")
 				+ " activated for " + format_elapsed(elapsed);
-			std::cout << fs_name << " in alarm for " << elapsed << " s" << std::endl;
 			break;
 		}
 		case DeviceState::Unreadable:
 			alarm_keys.insert("floatswitch:" + fs_name);
-			alert_broadcast += "\n- Float Switch " + fs_name + " state is unreadable";
+			lines += "\n- Float Switch " + fs_name + " state is unreadable";
 			break;
 		case DeviceState::Ok:
 			break;
 		case DeviceState::Unknown:
-			std::cout << "Float Switch " + fs_name + " state is unknown";
 			break;
 		}
-		
 	}
-	return alert_broadcast;
+
+	if (lines.empty()) return "";
+	return "🚨" + name_ + "'s FLOATSWITCH ALARM!!!🚨" + lines + "\n";
+}
+
+bool MonitoringModule::set_alarm_threshold() {
+	std::lock_guard<std::mutex> lock(mtx_);
+	const auto now = std::chrono::steady_clock::now();
+	if (check_mode_until_ >= now) {
+		// Presea on going
+		return false;
+	}
+	else {
+		// activating presea
+		check_mode_until_ = now + PreseaDuration;
+		return true;
+	}
+
 }
 
 std::vector<BatteryCondition> MonitoringModule::parse_batteries(const json& device_info) {
@@ -326,6 +353,21 @@ std::vector<BatteryCondition> MonitoringModule::parse_batteries(const json& devi
 		c.status = b.at("status").get<DeviceState>();
 		c.soc_pct = b.at("soc_pct").get<float>();
 		c.time_to_go = format_elapsed(b.at("timetogo_s").get<int>());
+		result.push_back(std::move(c));
+	}
+	return result;
+}
+
+std::vector<FloatSwitchCondition> MonitoringModule::parse_floatswitches(const json& device_info)
+{
+	std::vector<FloatSwitchCondition> result;
+	for (const auto& f : device_info.at("devices")) {
+		FloatSwitchCondition c;
+		c.name = f.at("name").get<std::string>();
+		c.status = f.at("status").get<DeviceState>();
+		if (auto it = f.find("elapsed_s"); it != f.end()) {
+			c.elapsed = format_elapsed(it->get<int>());
+		}
 		result.push_back(std::move(c));
 	}
 	return result;

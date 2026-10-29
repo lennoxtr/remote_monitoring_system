@@ -1,6 +1,6 @@
 #pragma once
 
-#include "AddResult.h"
+#include "Common.h"
 #include <string>
 #include <mutex>
 #include <vector>

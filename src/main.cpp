@@ -8,6 +8,8 @@
 #include <chrono>
 #include <functional>
 #include <vector>
+#include <map>
+#include <memory>
 
 int main()
 {   
@@ -30,6 +32,8 @@ int main()
 
     ManagementModule management_module;
 
+    std::map<std::string, std::unique_ptr<MonitoringModule>> monitoring_modules;
+
     AlarmModule alarm_module(telegram_token, admin_broadcast_password,
         {
         .add_operator = [&](std::int64_t id, const std::string& passcode) { return management_module.add_operator(id, passcode); },
@@ -46,30 +50,42 @@ int main()
             return vessel_names;
         },
         .get_all_operators = [&]() { return management_module.get_all_operators(); }
+        },
+        {
+        .get_vessel_status = [&](const std::string& vessel_name) {
+            return monitoring_modules.at(vessel_name)->get_vessel_status();
+        }
+
+        set_alarm_threshold = [&](const std::string& vessel_name) {
+            return monitoring_modules.at(vessel_name)->set_alarm_threshold();
+        }
         });
 
-    std::chrono::seconds watchdog_timeout_freq_(60);
-    std::chrono::seconds broadcast_freq_(60);
-
-    std::vector<std::thread> monitor_threads;    
+    std::chrono::seconds watchdog_timeout_freq(60);
+    std::chrono::seconds broadcast_freq(60);
+    
     for (const auto& vessel : management_module.get_all_vessels()) {
-        monitor_threads.emplace_back([&, vessel] {
-            std::function<void(const std::string&)> alert_callback =
-                [&alarm_module, name = vessel.name](const std::string& message) {
+        std::function<void(const std::string&)> alert_callback =
+            [&alarm_module, name = vessel.name](const std::string& message) {
                 alarm_module.broadcast(message, name);
-                };
+            };
 
-            MonitoringModule monitoring_module(
+        monitoring_modules.emplace(
+            vessel.name,
+            std::make_unique<MonitoringModule>(
                 vessel.name,
                 vessel.target_ip,
                 vessel.target_port,
-                watchdog_timeout_freq_,
-                broadcast_freq_,
-                alert_callback);
-
-            monitoring_module.start();
-            });
+                watchdog_timeout_freq,
+                broadcast_freq,
+                alert_callback));
     }
+
+    std::vector<std::thread> monitor_threads;
+    for (auto& [name, module] : monitoring_modules) {
+        monitor_threads.emplace_back(&MonitoringModule::start, module.get());
+    }
+
 
     alarm_module.start(); 
 
