@@ -1,6 +1,7 @@
 #pragma once
 #include <optional>
 #include <string>
+#include <vector>
 
 enum class AddResult { Added, AlreadySubscribed, WrongPasscode };
 enum class DeviceType { Unknown, Battery, FloatSwitch };

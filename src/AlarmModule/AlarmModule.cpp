@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <cmath>
+#include <vector>
 
 template <typename Callback>
 void require(const Callback& callback, const char* name)
