@@ -134,5 +134,5 @@ private:
 	std::string strip_prefix(const std::string& name, const std::string& prefix);
 	std::string format_elapsed(int seconds);
 	std::vector<BatteryCondition> parse_batteries(const nlohmann::json& device_info);
-	std::vector<FloatSwitchCondition> MonitoringModule::parse_floatswitches(const nlohmann::json& device_info);
+	std::vector<FloatSwitchCondition> parse_floatswitches(const nlohmann::json& device_info);
 };
