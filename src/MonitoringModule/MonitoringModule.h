@@ -53,7 +53,7 @@ private:
 	std::chrono::steady_clock::time_point last_reset_time_;
 	std::chrono::steady_clock::time_point next_alert_time_;
 
-	std::mutex mtx_;
+	mutable std::mutex mtx_;
 	std::condition_variable cv_;
 	bool running_ = true;
 	bool timed_out_ = false;
