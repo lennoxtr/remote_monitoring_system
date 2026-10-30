@@ -6,6 +6,7 @@
 enum class AddResult { Added, AlreadySubscribed, WrongPasscode };
 enum class DeviceType { Unknown, Battery, FloatSwitch };
 enum class DeviceState { Unknown, Ok, Unreadable, Alarm };
+enum class PreseaStatus { Activated, AlreadyActive, LinkDown };
 
 struct FloatSwitchCondition {
 	std::string name;
@@ -21,6 +22,8 @@ struct BatteryCondition {
 };
 
 struct VesselStatus {
+	bool link_up = false;
+	bool has_data = false;
 	std::vector<FloatSwitchCondition> floatswitch_status_list;
 	std::vector<BatteryCondition> batteries_status_list;
 };

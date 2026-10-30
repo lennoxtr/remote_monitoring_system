@@ -44,7 +44,7 @@ public:
 
 	struct MonitoringCallbacks {
 		std::function<VesselStatus(const std::string&)> get_vessel_status;
-		std::function<bool(const std::string&)> set_alarm_threshold;
+		std::function<PreseaStatus(const std::string&)> set_alarm_threshold;
 	};
 
 	explicit AlarmModule(

@@ -184,6 +184,7 @@ int MonitoringModule::process_messages(const std::string& message)
 			floatswitches = parse_floatswitches(*it);
 		{
 			std::lock_guard<std::mutex> lock(mtx_);
+			has_data_ = true;
 			batteries_status_list_ = std::move(batteries);
 			floatswitch_status_list_ = std::move(floatswitches);
 		}
@@ -332,29 +333,40 @@ std::string MonitoringModule::build_floatswitch_alarm(const json& device_info, s
 }
 
 bool MonitoringModule::set_alarm_threshold() {
+	bool link_up = watchdog_.is_link_up();
+
+	if (!link_up) {
+		return PreseaStatus::LinkDown;
+	}
+
 	std::lock_guard<std::mutex> lock(mtx_);
 	const auto now = std::chrono::steady_clock::now();
 	if (check_mode_until_ >= now) {
 		// Presea on going
-		return false;
+		return PreseaStatus::AlreadyActive;
 	}
 	else {
 		// activating presea
 		check_mode_until_ = now + PreseaDuration;
-		return true;
+		return PreseaStatus::Activated;
 	}
 
 }
 
-std::vector<BatteryCondition> MonitoringModule::parse_batteries(const json& device_info) {
+std::vector<BatteryCondition> MonitoringModule::parse_batteries(const json& battery_info) {
 	std::vector<BatteryCondition> result;
-	for (const auto& b : device_info.at("devices")) {
-		BatteryCondition c;
-		c.name = b.at("name").get<std::string>();
-		c.status = b.at("status").get<DeviceState>();
-		c.soc_pct = b.at("soc_pct").get<float>();
-		c.time_to_go = format_elapsed(b.at("timetogo_s").get<int>());
-		result.push_back(std::move(c));
+	for (const auto& battery : battery_info.at("devices")) {
+		BatteryCondition batt_condition;
+		batt_condition.name = battery.at("name").get<std::string>();
+		batt_condition.status = battery.at("status").get<DeviceState>();
+
+		float soc = battery.at("soc_pct").get<float>();
+		int ttg = battery.at("timetogo_s").get<int>();
+
+		if (soc >= 0) batt_condition.soc_pct = soc;
+		if (ttg >= 0) batt_condition.time_to_go = format_elapsed(ttg);
+
+		result.push_back(std::move(batt_condition));
 	}
 	return result;
 }

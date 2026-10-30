@@ -38,6 +38,11 @@ public:
 	);
 	~Watchdog();
 
+	bool is_link_up() const {
+		std::lock_guard<std::mutex> lock(mtx_);
+		return !timed_out_;
+	}
+
 	void reset();
 private:
 
@@ -78,14 +83,17 @@ public:
 	void end();
 
 	VesselStatus get_vessel_status() const {
+		const bool link_up = watchdog_.is_link_up();
 		std::lock_guard<std::mutex> lock(mtx_);
 		VesselStatus vessel_status;
+		vessel_status.link_up = link_up;
+		vessel_status.has_data = has_data_;
 		vessel_status.batteries_status_list = batteries_status_list_;
 		vessel_status.floatswitch_status_list = floatswitch_status_list_;
 		return vessel_status; 
 	};
 
-	bool set_alarm_threshold();
+	PreseaStatus set_alarm_threshold();
 
 private:
 	AlertCallback alert_callback_;
@@ -125,6 +133,7 @@ private:
 			: NormalAlarmThreshold_s;
 	}
 
+	bool has_data_ = false;
 	std::vector<FloatSwitchCondition> floatswitch_status_list_;
 	std::vector<BatteryCondition> batteries_status_list_;
 

@@ -161,21 +161,6 @@ void AlarmModule::register_commands()
         reply += "\nYou are subscribed to alerts from: \n";
         for (const auto& vessel_name : vessel_list) {
             reply += "\n- " + vessel_name;
-            /*
-            VesselStatus vessel_status = monitoring_callbacks_.get_vessel_status(vessel_name);
-            std::vector<FloatSwitchCondition> floatswitch_status_list = vessel_status.floatswitch_status_list;
-            for (FloatSwitchCondition fs : floatswitch_status_list) {
-                reply += "\n" + fs.name + (fs.status == DeviceState::Alarm ? " has been activated for " + fs.elapsed : " state cannot be read");
-            }
-            reply += "\n"
-            std::vector<BatteryCondition> batteries_status_list = vessel_status.batteries_status_list;
-            for (BatteryCondition batt : batteries_status_list) {
-                reply += "\n" + batt.name +
-                    (batt.status != DeviceState::Unreadable ?
-                        " state cannot be read" :
-                        " SOC: " + std::to_string(std::lround(batt.soc_pct)) + "%, time to go: " + batt.time_to_go);
-            }
-            */
         }
         send(m->chat->id, reply);
         send(m->chat->id, "To see a vessel's status, type its name:");
@@ -333,13 +318,25 @@ void AlarmModule::handle_pending_reply(const TgBot::Message::Ptr& m, const Pendi
         auto it = std::find(subscribed_vessel_list.begin(), subscribed_vessel_list.end(), text);
 
         if (it != subscribed_vessel_list.end()) {
-            if (monitoring_callbacks_.set_alarm_threshold(text)) {
+
+            switch (monitoring_callbacks_.set_alarm_threshold(text)) {
+            case PreseaStatus::Activated:
+            {
                 broadcast(text + " conducting presea/postsea. Alarm will be sent if floatswitch triggered for 5 sec.", text);
+                break;
             }
-            else {
+
+            case PreseaStatus::AlreadyActive:
+            {
                 send(m->chat->id, "Presea/Postsea ongoing.");
+                break;
             }
-            
+            case PreseaStatus::LinkDown:
+            {
+                send(m->chat->id, "Link to vessel currently down");
+                break;
+            }
+            }
         }
         else {
             send(m->chat->id, "The name you entered does not match any vessel in record. Try again by typing /vessel_check");
@@ -357,13 +354,16 @@ void AlarmModule::handle_pending_reply(const TgBot::Message::Ptr& m, const Pendi
         }
         else {
             const VesselStatus status = monitoring_callbacks_.get_vessel_status(text);
+            if (!status.link_up) {
+                send(m->chat->id, "Link to " + text + " currently down.");
+            }
             
-            if (status.floatswitch_status_list.empty() && status.batteries_status_list.empty()) {
+            if (!status.has_data) {
                 send(m->chat->id, text + ": no data received yet.");
                 break;
             }
 
-            std::string reply = "📋 " + text + " status:\n";
+            std::string reply = "📋 " + text + (status.link_up ? " status:\n" : " last retrievable status:\n");
 
             if (!status.floatswitch_status_list.empty()) {
                 reply += "\nFloat switches alarm:";
@@ -376,6 +376,8 @@ void AlarmModule::handle_pending_reply(const TgBot::Message::Ptr& m, const Pendi
                             reply += " for " + fs.elapsed.value_or("n/a");
                         }
                         break;
+                    case DeviceState::Ok:
+                        break;
                     case DeviceState::Unreadable:
                         reply += "status cannot be read";
                         break;
@@ -387,7 +389,7 @@ void AlarmModule::handle_pending_reply(const TgBot::Message::Ptr& m, const Pendi
                 reply += "\n";
             }
             else {
-                reply += "ALL OK ✅\n";
+                reply += "✅Float switches: all ok ✅\n";
             }
 
             if (!status.batteries_status_list.empty()) {
@@ -401,8 +403,8 @@ void AlarmModule::handle_pending_reply(const TgBot::Message::Ptr& m, const Pendi
                         reply += "unknown";
                     }
                     else {
-                        reply += "SOC " + std::to_string(std::lround(*batt.soc_pct)) + "%"
-                            + ", time to go " + batt.time_to_go.value_or("n/a");
+                        reply += "SOC " + (batt.soc_pct ? std::to_string(std::lround(*batt.soc_pct)) + "%" : std::string("n/a"))
+                            + ", estimated duration: " + batt.time_to_go.value_or("n/a");
                         if (batt.status == DeviceState::Alarm) {
                             reply += " ⚠️ LOW";
                         }
