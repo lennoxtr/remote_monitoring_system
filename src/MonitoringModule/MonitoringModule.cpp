@@ -332,7 +332,7 @@ std::string MonitoringModule::build_floatswitch_alarm(const json& device_info, s
 	return "🚨" + name_ + "'s FLOATSWITCH ALARM!!!🚨" + lines + "\n";
 }
 
-bool MonitoringModule::set_alarm_threshold() {
+PreseaStatus MonitoringModule::set_alarm_threshold() {
 	bool link_up = watchdog_.is_link_up();
 
 	if (!link_up) {
