@@ -27,8 +27,8 @@ public:
 	std::vector<VesselInfo> get_all_vessels();
 	std::vector<std::int64_t> get_all_operators();
 
-	void add_vessel();
-	void remove_vessel();
+	bool get_dev_mode(const std::string& vessel_name);
+	bool set_dev_mode(const std::string& vessel_name, bool dev_mode_status);
 private:
 	nlohmann::json read_json(const std::string& path);
 	bool write_json(const std::string& path, const nlohmann::json& data);
@@ -37,4 +37,7 @@ private:
 	std::string vessel_record_path_ = "../data/vessel_record.json";
 	std::string operator_record_path_ = "../data/operator_record.json";
 	std::string assignment_record_path_ = "../data/assignment_record.json";
+
+	std::string dev_operator_record_path_ = "../dev/operator_record.json";
+	std::string dev_assignment_record_path_ = "../dev/assignment_record.json";
 };

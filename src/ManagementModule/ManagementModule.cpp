@@ -4,6 +4,7 @@
 #include <fstream>
 #include <algorithm>
 #include <iostream>
+#include <string>
 
 ManagementModule::ManagementModule() {
 }
@@ -123,8 +124,8 @@ std::vector<std::string> ManagementModule::get_subscribed_vessel_list(std::int64
 
 std::vector<std::int64_t> ManagementModule::get_operator_list(const std::string& vessel_name) {
 	std::lock_guard<std::mutex> lock(mtx_);
-
-	const nlohmann::json assignment_record = read_json(assignment_record_path_);
+	std::string path = get_dev_mode(vessel_name) ? dev_assignment_record_path_ : assignment_record_path_;
+	const nlohmann::json assignment_record = read_json(path);
 
 	auto it = assignment_record.find(vessel_name);
 	if (it == assignment_record.end()) {
@@ -178,4 +179,26 @@ bool ManagementModule::write_json(const std::string& path, const nlohmann::json&
 	}
 	file << data.dump(2) << '\n';
 	return true;
+}
+
+bool ManagementModule::get_dev_mode(const std::string& vessel_name)
+{
+	std::lock_guard<std::mutex> lock(mtx_);
+	const nlohmann::json vessel_record = read_json(vessel_record_path_);
+
+	auto it = vessel_record.find(vessel_name);
+	if (it == vessel_record.end()) {
+		return false;                              
+	}
+	return it->value("dev_mode", false);          
+}
+
+bool ManagementModule::set_dev_mode(const std::string& vessel_name, bool dev_mode_status)
+{
+	std::lock_guard<std::mutex> lock(mtx_);
+	nlohmann::json vessel_record = read_json(vessel_record_path_);
+
+	auto it = vessel_record.find(vessel_name);
+	(*it)["dev_mode"] = dev_mode_status;
+	return write_json(vessel_record_path_, vessel_record);
 }

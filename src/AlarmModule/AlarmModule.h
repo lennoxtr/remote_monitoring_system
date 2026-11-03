@@ -18,7 +18,8 @@ enum class PendingItem {
 	VesselToBroadcast,
 	BroadcastText,
 	VesselToPresea,
-	VesselToShowStatus
+	VesselToShowStatus,
+	VesselToDevMode
 };
 
 struct PendingState {
@@ -45,6 +46,8 @@ public:
 	struct MonitoringCallbacks {
 		std::function<VesselStatus(const std::string&)> get_vessel_status;
 		std::function<PreseaStatus(const std::string&)> set_alarm_threshold;
+		std::function<bool(const std::string&)> set_dev_mode;
+		std::function<bool(const std::string&)> get_dev_mode;
 	};
 
 	explicit AlarmModule(
@@ -73,5 +76,7 @@ private:
 	void handle_pending_reply(const TgBot::Message::Ptr& m, const PendingState& state);
 
 	void send(std::int64_t chat_id, const std::string& message);
+	void delete_message(std::int64_t chat_id, std::int32_t message_id);
+
 	void clear_pending(std::int64_t chat_id);
 };

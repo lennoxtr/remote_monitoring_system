@@ -58,6 +58,12 @@ int main()
 
         .set_alarm_threshold = [&](const std::string& vessel_name) {
             return monitoring_modules.at(vessel_name)->set_alarm_threshold();
+        },
+        .get_dev_mode = [&](const std::string& vessel_name) {
+            return monitoring_modules.get_dev_mode(vessel_name);
+        },
+        .set_dev_mode = [&](const std::string& vessel_name, bool dev_mode_state) {
+            return monitoring_modules.set_dev_mode(vessel_name, dev_mode_state);
         }
         });
 

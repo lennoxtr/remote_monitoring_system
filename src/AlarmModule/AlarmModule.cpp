@@ -187,6 +187,20 @@ void AlarmModule::register_commands()
         pending_[m->chat->id] = { PendingItem::PasscodeAdminBroadcast };
         });
 
+    events.onCommand("devmode", [this](TgBot::Message::Ptr m) {
+        clear_pending(m->chat->id);
+        
+        std::vector<std::string> all_vessel_list = management_callbacks_.get_all_vessels();
+
+        std::string devmode_confirmation = "Which vessel to toggle dev mode:\n";
+        for (const auto& vessel_name : all_vessel_list) {
+            devmode_confirmation += "\n- " + vessel_name + (monitoring_callbacks_.get_dev_mode(vessel_name) ? ": Active" : ": Inactive");
+        }
+        send(m->chat->id, devmode_confirmation);
+        pending_[m->chat->id] = { PendingItem::VesselToDevMode };
+
+        });
+
     events.onNonCommandMessage([this](TgBot::Message::Ptr m) {
         const auto id = m->chat->id;
         auto it = pending_.find(id);
@@ -228,6 +242,7 @@ void AlarmModule::handle_pending_reply(const TgBot::Message::Ptr& m, const Pendi
             break;
         }
         break;
+        delete_message(m->chat->id, m->messageId);
     }
 
     case PendingItem::ConfirmMute:
@@ -416,6 +431,21 @@ void AlarmModule::handle_pending_reply(const TgBot::Message::Ptr& m, const Pendi
         }
         break;
     }
+
+    case PendingItem::VesselToDevMode:
+    {
+        std::vector<std::string> all_vessel_list = management_callbacks_.get_all_vessels();
+
+        if (std::find(all_vessel_list.begin(), all_vessel_list.end(), text) != all_vessel_list.end()) {
+            monitoring_callbacks_.set_dev_mode(text, !monitoring_callbacks_.get_dev_mode(text));
+            std::string broadcast_confirmation =  text + " dev mode status is" + (monitoring_callbacks_.get_dev_mode(text) ? ": Active" : ": Inactive");
+            send(m->chat->id, broadcast_confirmation);
+        }
+        else {
+            send(m->chat->id, "Cannot find. Try again by typing /devmode.");
+        }
+        break;
+    }
     }
 }
 
@@ -439,6 +469,17 @@ void AlarmModule::send(std::int64_t chat_id, const std::string& message)
     std::lock_guard<std::mutex> lock(api_mtx_);
     try {
         bot_.getApi().sendMessage(chat_id, message);
+    }
+    catch (const TgBot::TgException& e) {
+        std::cerr << "Telebot Exception" << std::endl;
+    }
+}
+
+void AlarmModule::delete_message(std::int64_t chat_id, const std::string& message)
+{
+    std::lock_guard<std::mutex> lock(api_mtx_);
+    try {
+        bot_.getApi().deleteMessage(chat_id, message);
     }
     catch (const TgBot::TgException& e) {
         std::cerr << "Telebot Exception" << std::endl;
