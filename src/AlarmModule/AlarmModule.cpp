@@ -475,11 +475,11 @@ void AlarmModule::send(std::int64_t chat_id, const std::string& message)
     }
 }
 
-void AlarmModule::delete_message(std::int64_t chat_id, const std::string& message)
+void AlarmModule::delete_message(std::int64_t chat_id, std::int32_t message_id)
 {
     std::lock_guard<std::mutex> lock(api_mtx_);
     try {
-        bot_.getApi().deleteMessage(chat_id, message);
+        bot_.getApi().deleteMessage(chat_id, message_id);
     }
     catch (const TgBot::TgException& e) {
         std::cerr << "Telebot Exception" << std::endl;
