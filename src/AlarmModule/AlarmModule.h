@@ -42,7 +42,7 @@ public:
 		std::function<std::vector<std::string>()> get_all_vessels;
 		std::function<std::vector<std::int64_t>()> get_all_operators;
 		std::function<bool(const std::string&)> get_dev_mode;
-		std::function<bool(const std::string&)> set_dev_mode;
+		std::function<bool(const std::string&, bool)> set_dev_mode;
 	};
 
 	struct MonitoringCallbacks {
