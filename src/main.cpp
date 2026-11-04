@@ -49,7 +49,13 @@ int main()
             }
             return vessel_names;
         },
-        .get_all_operators = [&]() { return management_module.get_all_operators(); }
+        .get_all_operators = [&]() { return management_module.get_all_operators(); },
+        .get_dev_mode = [&](const std::string& vessel_name) {
+            return management_module.get_dev_mode(vessel_name);
+        },
+        .set_dev_mode = [&](const std::string& vessel_name, bool dev_mode_state) {
+            return management_module.set_dev_mode(vessel_name, dev_mode_state);
+        }
         },
         {
         .get_vessel_status = [&](const std::string& vessel_name) {
@@ -58,12 +64,6 @@ int main()
 
         .set_alarm_threshold = [&](const std::string& vessel_name) {
             return monitoring_modules.at(vessel_name)->set_alarm_threshold();
-        },
-        .get_dev_mode = [&](const std::string& vessel_name) {
-            return monitoring_modules.get_dev_mode(vessel_name);
-        },
-        .set_dev_mode = [&](const std::string& vessel_name, bool dev_mode_state) {
-            return monitoring_modules.set_dev_mode(vessel_name, dev_mode_state);
         }
         });
 

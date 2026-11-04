@@ -40,6 +40,8 @@ AlarmModule::AlarmModule(
     require(management_callbacks_.get_operator_list, "get_operator_list");
     require(management_callbacks_.get_all_vessels, "get_all_vessels");
     require(management_callbacks_.get_all_operators, "get_all_operators");
+    require(management_callbacks_.get_dev_mode, "get_dev_mode");
+    require(management_callbacks_.set_dev_mode, "set_dev_mode");
 
     //Monitoring Callback
     require(monitoring_callbacks_.get_vessel_status, "get_vessel_status");
@@ -98,6 +100,9 @@ void AlarmModule::register_commands()
 
             for (const auto& vessel_name : vessel_list) {
                 presea_confirmation += "\n- " + vessel_name;
+                if (management_callbacks_.get_dev_mode(vessel_name)) {
+                    presea_confirmation += "  (🛠 under maintenance)";
+                }
             }
 
             send(m->chat->id, presea_confirmation);
@@ -194,7 +199,7 @@ void AlarmModule::register_commands()
 
         std::string devmode_confirmation = "Which vessel to toggle dev mode:\n";
         for (const auto& vessel_name : all_vessel_list) {
-            devmode_confirmation += "\n- " + vessel_name + (monitoring_callbacks_.get_dev_mode(vessel_name) ? ": Active" : ": Inactive");
+            devmode_confirmation += "\n- " + vessel_name + (management_callbacks_.get_dev_mode(vessel_name) ? ": Active" : ": Inactive");
         }
         send(m->chat->id, devmode_confirmation);
         pending_[m->chat->id] = { PendingItem::VesselToDevMode };
@@ -224,6 +229,7 @@ void AlarmModule::handle_pending_reply(const TgBot::Message::Ptr& m, const Pendi
     {
         std::vector<std::string> vessel_list;
         std::string subscribe_confirmation;
+        delete_message(m->chat->id, m->messageId);
         switch (management_callbacks_.add_operator(m->chat->id, text)) {
         case AddResult::Added:
             vessel_list = management_callbacks_.get_subscribed_vessel_list(m->chat->id);
@@ -242,7 +248,7 @@ void AlarmModule::handle_pending_reply(const TgBot::Message::Ptr& m, const Pendi
             break;
         }
         break;
-        delete_message(m->chat->id, m->messageId);
+        
     }
 
     case PendingItem::ConfirmMute:
@@ -269,7 +275,8 @@ void AlarmModule::handle_pending_reply(const TgBot::Message::Ptr& m, const Pendi
     }
 
     case PendingItem::PasscodeAdminBroadcast:
-    {
+    {   
+        delete_message(m->chat->id, m->messageId);
         if (!admin_broadcast_password_.empty() && text == admin_broadcast_password_) {
             std::vector<std::string> all_vessel_list = management_callbacks_.get_all_vessels();
 
@@ -333,6 +340,14 @@ void AlarmModule::handle_pending_reply(const TgBot::Message::Ptr& m, const Pendi
         auto it = std::find(subscribed_vessel_list.begin(), subscribed_vessel_list.end(), text);
 
         if (it != subscribed_vessel_list.end()) {
+            if (management_callbacks_.get_dev_mode(text)) {
+                send(m->chat->id,
+                    "🛠 " + text + " is under maintenance.\n"
+                    "Alarms currently go to the maintenance team, so a presea/postsea check isn't available. "
+                    "Contact the admin if this is unexpected.");
+                break;
+            }
+
 
             switch (monitoring_callbacks_.set_alarm_threshold(text)) {
             case PreseaStatus::Activated:
@@ -437,8 +452,8 @@ void AlarmModule::handle_pending_reply(const TgBot::Message::Ptr& m, const Pendi
         std::vector<std::string> all_vessel_list = management_callbacks_.get_all_vessels();
 
         if (std::find(all_vessel_list.begin(), all_vessel_list.end(), text) != all_vessel_list.end()) {
-            monitoring_callbacks_.set_dev_mode(text, !monitoring_callbacks_.get_dev_mode(text));
-            std::string broadcast_confirmation =  text + " dev mode status is" + (monitoring_callbacks_.get_dev_mode(text) ? ": Active" : ": Inactive");
+            management_callbacks_.set_dev_mode(text, !management_callbacks_.get_dev_mode(text));
+            std::string broadcast_confirmation =  text + " dev mode status is" + (management_callbacks_.get_dev_mode(text) ? ": Active" : ": Inactive");
             send(m->chat->id, broadcast_confirmation);
         }
         else {
@@ -488,16 +503,16 @@ void AlarmModule::delete_message(std::int64_t chat_id, std::int32_t message_id)
 
 void AlarmModule::broadcast(const std::string& message, const std::string& vessel_name)
 {
-
-    if (!management_callbacks_.get_operator_list) {
-        return;
-    }
     try {
         for (std::int64_t chat_id : management_callbacks_.get_operator_list(vessel_name)) {
-            if (management_callbacks_.is_muted && management_callbacks_.is_muted(chat_id)) {
-                continue;
+            try {
+                if (management_callbacks_.is_muted(chat_id)) continue;
+                send(chat_id, message);
             }
-            send(chat_id, message);
+            catch (const std::exception& e) {
+                std::cerr << "Broadcast to " << chat_id << " for " << vessel_name << " failed: " << e.what() << std::endl;
+            }
+
         }
     }
     catch (const std::exception& e) {

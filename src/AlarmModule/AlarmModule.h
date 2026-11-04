@@ -41,13 +41,13 @@ public:
 		std::function<std::vector<std::int64_t>(const std::string&)> get_operator_list;
 		std::function<std::vector<std::string>()> get_all_vessels;
 		std::function<std::vector<std::int64_t>()> get_all_operators;
+		std::function<bool(const std::string&)> get_dev_mode;
+		std::function<bool(const std::string&)> set_dev_mode;
 	};
 
 	struct MonitoringCallbacks {
 		std::function<VesselStatus(const std::string&)> get_vessel_status;
 		std::function<PreseaStatus(const std::string&)> set_alarm_threshold;
-		std::function<bool(const std::string&)> set_dev_mode;
-		std::function<bool(const std::string&)> get_dev_mode;
 	};
 
 	explicit AlarmModule(

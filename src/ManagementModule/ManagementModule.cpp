@@ -104,10 +104,9 @@ bool ManagementModule::is_muted(std::int64_t chat_id) {
 	std::lock_guard<std::mutex> lock(mtx_);
 	const nlohmann::json operator_record = read_json(operator_record_path_);
 
-	const auto& operator_snippet = operator_record.at(std::to_string(chat_id));
-
-	bool is_muted = operator_snippet.at("is_muted");
-	return is_muted;
+	auto it = operator_record.find(std::to_string(chat_id));
+	if (it == operator_record.end()) return false;
+	return it->value("is_muted", false);
 }
 
 std::vector<std::string> ManagementModule::get_subscribed_vessel_list(std::int64_t chat_id) {
@@ -123,8 +122,8 @@ std::vector<std::string> ManagementModule::get_subscribed_vessel_list(std::int64
 }
 
 std::vector<std::int64_t> ManagementModule::get_operator_list(const std::string& vessel_name) {
-	std::lock_guard<std::mutex> lock(mtx_);
 	std::string path = get_dev_mode(vessel_name) ? dev_assignment_record_path_ : assignment_record_path_;
+	std::lock_guard<std::mutex> lock(mtx_);
 	const nlohmann::json assignment_record = read_json(path);
 
 	auto it = assignment_record.find(vessel_name);
@@ -199,6 +198,7 @@ bool ManagementModule::set_dev_mode(const std::string& vessel_name, bool dev_mod
 	nlohmann::json vessel_record = read_json(vessel_record_path_);
 
 	auto it = vessel_record.find(vessel_name);
+	if (it == vessel_record.end()) return false;
 	(*it)["dev_mode"] = dev_mode_status;
 	return write_json(vessel_record_path_, vessel_record);
 }
