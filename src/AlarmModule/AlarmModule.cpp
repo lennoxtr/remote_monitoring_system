@@ -206,6 +206,13 @@ void AlarmModule::register_commands()
 
         });
 
+    events.onUnknownCommand([this](TgBot::Message::Ptr m) {
+        clear_pending(m->chat->id);
+        send(m->chat->id,
+            "Unknown command: " + m->text + "\n"
+            "Type /help to see the list of commands.");
+        });
+
     events.onNonCommandMessage([this](TgBot::Message::Ptr m) {
         const auto id = m->chat->id;
         auto it = pending_.find(id);
